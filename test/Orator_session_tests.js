@@ -149,6 +149,25 @@ suite
 				);
 				test
 				(
+					'Send request to authenticate a user (bad login)',
+					function(fDone)
+					{
+						libSuperTest
+								.get('AUTH?username=' +
+									encodeURIComponent('bad') + '&password=' +
+									encodeURIComponent('wrong'))
+								.end(
+									function (pError, pResponse)
+									{
+										Expect(pResponse.text)
+											.to.contain('Failed');
+										fDone();
+									}
+								);
+					}
+				);
+				test
+				(
 					'Send request to authenticate a user',
 					function(fDone)
 					{
