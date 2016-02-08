@@ -15,13 +15,19 @@ var OratorSession = function()
 		var _Settings = pFable.settings;
 		var _Log = pFable.log;
 
+		//Default settings value for session cookie name
+		if (!_Settings.SessionCookieName)
+			_Settings.SessionCookieName = 'UserSession';
+		if (!_Settings.SessionTempTokenTimeout)
+			_Settings.SessionTempTokenTimeout = 60;
+
 		var libCookieParser = require('restify-cookies');
 		var libUUIDGenerator = require('fable-uuid').new(pFable.settings);
 
 		var libMemcached = require('memcached');
 		var _Memcached = false;
-		_Log.trace('Connecting to Memcached '+_Settings.Session.MemcachedURL);
-		_Memcached = new libMemcached(_Settings.Session.MemcachedURL);
+		_Log.trace('Connecting to Memcached '+_Settings.MemcachedURL);
+		_Memcached = new libMemcached(_Settings.MemcachedURL);
 
 		/**
 		* Wire up routes for the OratorSession
@@ -34,10 +40,30 @@ var OratorSession = function()
 			pRestServer.use(libCookieParser.parse);
 			// This means the getSession is called on every request
 			pRestServer.use(getSession);
+			// This checks for a temp session token on every request
+			pRestServer.use(getTempSession); //import session when ?SessionToken=temp_token_id
+			// This logs each request after the session is set
+			pRestServer.use(logSession);
+
+			// Deauthenticate
+			pRestServer.get('1.0/Deauthenticate', deAuthenticateUser);
+
+			pRestServer.get('1.0/CheckSession', checkSession);
+
+			//checkout a temp token which allows 3rd party connection to use this session
+			pRestServer.get('1.0/CheckoutSessionToken', getSessionToken);
 
 			//We could add routes here to support different auth-types
 			// depending on configuration (WWW-Auth for example)
 		};
+
+		/**
+		 * Get SessionID from browser session cookie ID
+		 */
+		var getSessionID = function(pRequest)
+		{
+			return pRequest.cookies[_Settings.SessionCookieName];
+		}
 
 		/**
 		 * Get a Session (creating one if it doesn't exist)
@@ -46,39 +72,124 @@ var OratorSession = function()
 		 */
 		var getSession = function getSession(pRequest, pResponse, fNext)
 		{
-			if ((typeof(pRequest.cookies.UserSession) === 'undefined') || (pRequest.cookies.UserSession === ''))
+			//TODO: maybe create a registry for this
+			if (pRequest.url.indexOf('/ping.html') === 0)
+				return fNext();
+
+			if ((typeof(getSessionID(pRequest)) === 'undefined') || (getSessionID(pRequest) === ''))
 			{
-				createSession(pRequest, pResponse, fNext);
+				return createSession(pRequest, pResponse, fNext);
 			}
 			else
 			{
-				//_Log.trace('Cookie reports session '+pRequest.cookies.UserSession);
-				_Memcached.get(pRequest.cookies.UserSession,
+				//_Log.trace('Cookie reports session '+getSessionID(pRequest));
+				_Memcached.get(getSessionID(pRequest),
 					function(pError, pData)
 					{
 						if (pError)
 						{
-							_Log.trace('Session ID not found but cookie exists, creating a new session'+pError, {SessionID:pRequest.cookies.UserSession});
-							createSession(pRequest, pResponse, fNext);
+							_Log.trace('Session ID not found but cookie exists, creating a new session'+pError, {SessionID:getSessionID(pRequest)});
+							return createSession(pRequest, pResponse, fNext);
 						}
 						else
 						{
 							if (typeof(pData) === 'undefined')
 							{
-								createSession(pRequest, pResponse, fNext);
+								return createSession(pRequest, pResponse, fNext);
 							}
 							else
 							{
-								//_Log.trace('Restoring session', {SessionID:pRequest.cookies.UserSession});
+								//_Log.trace('Restoring session', {SessionID:getSessionID(pRequest)});
 								// Touch the session so we reset timeout.
-								_Memcached.touch(pRequest.cookies.UserSession, _Settings.Session.Timeout, function (pError) { /* TODO: Log errors on the touch. */ });
-								pRequest.UserSession = JSON.parse(pData)
-								fNext();
+								_Memcached.touch(getSessionID(pRequest), _Settings.SessionTimeout, function (pError) { /* TODO: Log errors on the touch. */ });
+								pRequest[_Settings.SessionCookieName] = JSON.parse(pData)
+								
+								return fNext();
 							}
 						}
 					}
 				);
 			}
+		};
+
+		/**
+		 * Get a Temp Session
+		 *
+		 * @method getTempSession
+		 * @params Querystring: ?SessionToken=temp_token_id
+		 */
+		var getTempSession = function(pRequest, pResponse, fNext)
+		{
+			if (!pRequest.query.SessionToken)
+				return fNext();
+
+			//validate SessionToken
+			_Memcached.get(pRequest.query.SessionToken,
+				function(pError, pSessionIdentifierData)
+				{
+					if (!pSessionIdentifierData)
+					{
+						_Log.error('Failed to find temp session token '+pRequest.query.SessionToken);
+						return fNext();
+					}
+
+					//verify that parent session is still active
+					_Memcached.get(pSessionIdentifierData,
+						function(pError, pData)
+						{
+							if (pError)
+							{
+								_Log.error('Failed to find session ' + pSessionIdentifierData + ' using temp token '+pRequest.query.SessionToken);
+								return fNext();
+							}
+
+							var tmpSession = JSON.parse(pData);
+
+							if (!tmpSession.LoggedIn)
+							{
+								_Log.error('User session ' + pSessionIdentifierData + ' is no longer logged in!');
+								return fNext();
+							}
+
+							_Log.trace('Session import using temp session token',
+							{
+								SessionID: pRequest[_Settings.SessionCookieName].SessionID,
+								ParentSessionID: tmpSession.SessionID,
+								TempSessionToken: pRequest.query.SessionToken
+							});
+
+							//allow this user session to import attributes from parent session
+							tmpSession.SessionID = pRequest[_Settings.SessionCookieName].SessionID;
+
+							setSessionLoginStatus(pRequest, tmpSession);
+
+							return fNext();
+						});
+				});
+		}
+
+		/**
+		* Get the currently logged in user
+		*/
+		var checkSession = function(pRequest, pResponse, fNext)
+		{
+			var tmpNext = (typeof(fNext) === 'function') ? fNext : function() {};
+
+			if (!pRequest[_Settings.SessionCookieName].LoggedIn)
+			{
+				pResponse.send({IDUser: 0, UserID:0, LoggedIn: false});
+				return tmpNext();
+			}
+
+			var tmpIDUser = pRequest[_Settings.SessionCookieName].UserID;
+			if (tmpIDUser < 1)
+			{
+				pResponse.send({IDUser: 0, UserID:0, LoggedIn: false});
+				return tmpNext();
+			}
+
+			pResponse.send(pRequest[_Settings.SessionCookieName]);
+			return tmpNext();
 		};
 
 		/**
@@ -95,15 +206,8 @@ var OratorSession = function()
 
 			// This is the state stored in Memcached
 			// We store this much to prevent roundtrips to the database each request
-			var tmpNewSessionData = (
-				{
-					SessionID: tmpSessionID,
-					UserID: 0,
-					UserRole: 'None',
-					UserRoleIndex: 0,
-					LoggedIn: false,
-					DeviceID: tmpUUID
-				});
+			var tmpNewSessionData = formatEmptyUserPacket(tmpSessionID, tmpUUID);
+
 			var tmpNewSessionDataString = JSON.stringify(tmpNewSessionData);
 
 			_Memcached.get(tmpSessionID,
@@ -112,12 +216,12 @@ var OratorSession = function()
 					if (pError)
 					{
 						//_Log.trace('Error checking if session exists in memcache'+pError, {SessionID:tmpSessionID});
-						_Memcached.set(tmpSessionID, tmpNewSessionDataString, _Settings.Session.Timeout,
+						_Memcached.set(tmpSessionID, tmpNewSessionDataString, _Settings.SessionTimeout,
 							function(pError)
 							{
 								if (pError) _Log.trace('Error setting session: '+pError, {SessionID:tmpSessionID});
-								pRequest.UserSession = tmpNewSessionData;
-								pResponse.setCookie('UserSession',tmpNewSessionData.SessionID, {path: '/', maxAge: _Settings.Session.Timeout, httpOnly: true });
+								pRequest[_Settings.SessionCookieName] = tmpNewSessionData;
+								pResponse.setCookie(_Settings.SessionCookieName,tmpNewSessionData.SessionID, {path: '/', maxAge: _Settings.SessionTimeout, httpOnly: true });
 								return fNext();
 							}
 						);
@@ -127,12 +231,12 @@ var OratorSession = function()
 						if (typeof(pData === undefined))
 						{
 							//_Log.trace('Session ID not found, creating', {SessionID:tmpSessionID});
-							_Memcached.set(tmpSessionID, tmpNewSessionDataString, _Settings.Session.Timeout,
+							_Memcached.set(tmpSessionID, tmpNewSessionDataString, _Settings.SessionTimeout,
 								function(pError)
 								{
 									if (pError) _Log.trace('Error setting session: '+pError, {SessionID:tmpSessionID});
-									pRequest.UserSession = tmpNewSessionData;
-									pResponse.setCookie('UserSession',tmpNewSessionData.SessionID, {path: '/', maxAge: _Settings.Session.Timeout, httpOnly: true });
+									pRequest[_Settings.SessionCookieName] = tmpNewSessionData;
+									pResponse.setCookie(_Settings.SessionCookieName,tmpNewSessionData.SessionID, {path: '/', maxAge: _Settings.SessionTimeout, httpOnly: true });
 									return fNext();
 								}
 							);
@@ -144,8 +248,8 @@ var OratorSession = function()
 								function(pError)
 								{
 									if (pError) _Log.trace('Error replacing session: '+pError, {SessionID:tmpSessionID});
-									pRequest.UserSession = tmpNewSessionData;
-									pResponse.setCookie('UserSession',tmpNewSessionData.SessionID, {path: '/', maxAge: _Settings.Session.Timeout, httpOnly: true });
+									pRequest[_Settings.SessionCookieName] = tmpNewSessionData;
+									pResponse.setCookie(_Settings.SessionCookieName,tmpNewSessionData.SessionID, {path: '/', maxAge: _Settings.SessionTimeout, httpOnly: true });
 									return fNext();
 								}
 							);
@@ -160,26 +264,48 @@ var OratorSession = function()
 		 *
 		 * @method setSessionLoginStatus
 		 * @param {Object} pRequest The request object to set a status on
-		 * @param {Object} pLoginResult An object which contains login result data
+		 * @param {Boolean} pStatus The status of being logged in (true or false)
+		 * @param {String} pRole The role of the user
 		 */
-		var setSessionLoginStatus = function(pRequest, pLoginResult)
+		var setSessionLoginStatus = function(pRequest, pUserPacket)
 		{
-			pRequest.UserSession.LoggedIn = pLoginResult.LoggedIn;
-			pRequest.UserSession.UserRole = pLoginResult.UserRole;
-			pRequest.UserSession.UserRoleIndex = pLoginResult.RoleIndex;
-			pRequest.UserSession.UserID = pLoginResult.UserID;
+			pRequest[_Settings.SessionCookieName] = pUserPacket;
 
-			//_Log.trace('Setting session status.', {SessionID:pRequest.UserSession.SessionID, Session: pRequest.UserSession});
-			_Memcached.replace(pRequest.UserSession.SessionID, JSON.stringify(pRequest.UserSession), _Settings.Session.Timeout,
+			_Log.trace('Setting session status.', {SessionID:pRequest[_Settings.SessionCookieName].SessionID, Session: pRequest[_Settings.SessionCookieName]});
+			_Memcached.replace(pRequest[_Settings.SessionCookieName].SessionID, JSON.stringify(pRequest[_Settings.SessionCookieName]), _Settings.SessionTimeout,
 				function(pError)
 				{
 					if (pError)
 					{
-						_Log.trace('Error setting session status: '+pError, {SessionID:pRequest.UserSession.SessionID, Session: pRequest.UserSession});
+						_Log.trace('Error setting session status: '+pError, {SessionID:pRequest[_Settings.SessionCookieName].SessionID, Session: pRequest[_Settings.SessionCookieName]});
 					}
 				}
 			);
 		};
+
+		/**
+		 * Log session state on Request
+		 */
+		var logSession = function(pRequest, pResponse, fNext)
+		{
+			//TODO: maybe create a registry for this
+			if (pRequest.url.indexOf('/ping.html') === 0)
+				return fNext();
+
+			_Log.info('Request',
+				{
+					ClientIP:pRequest.connection.remoteAddress,
+					RequestUUID:pRequest.RequestUUID,
+					RequestURL:pRequest.url,
+					SessionID:pRequest[_Settings.SessionCookieName].SessionID,
+					IDCustomer:pRequest[_Settings.SessionCookieName].CustomerID,
+					IDUser:pRequest[_Settings.SessionCookieName].UserID,
+				});
+			// This duplicates the session data for the Meadow endpoints //TODO: change meadow to use _Settings.SessionCookieName
+			pRequest.SessionData = pRequest[_Settings.SessionCookieName];
+			
+			return fNext();
+		}
 
 		/**
 		 * Check the session login status
@@ -189,13 +315,13 @@ var OratorSession = function()
 		 */
 		 var checkIfLoggedIn = function(pRequest)
 		 {
-		 	if ((typeof(pRequest.cookies.UserSession) === 'undefined') || (pRequest.cookies.UserSession === ''))
+		 	if ((typeof(getSessionID(pRequest)) === 'undefined') || (getSessionID(pRequest) === ''))
 			{
 				return false;
 			}
 			else
 			{
-				return (pRequest.UserSession.LoggedIn && pRequest.UserSession.UserID > 0);
+				return (pRequest[_Settings.SessionCookieName].LoggedIn && pRequest[_Settings.SessionCookieName].UserID > 0);
 			}
 		 };
 
@@ -209,18 +335,33 @@ var OratorSession = function()
 		{
 			_Log.trace('A user is attempting to login: ' + pRequest.Credentials.username);
 
-			fAuthenticator(pRequest.Credentials, function(err, loginResult)
+			// This will fail if the username or password are equal to false.  Not exactly bad....
+			if (!pRequest.Credentials ||
+				!pRequest.Credentials.username || 
+				!pRequest.Credentials.password)
 			{
-				var tmpStatus = (loginResult.LoggedIn && loginResult.UserID > 0) ?
+				_Log.info('Authentication failure', {RequestID:pRequest.RequestUUID,Action:'Authenticate Validation',Success:false});
+				return fCallBack('Bad username or password!');
+			}
+
+			fAuthenticator(pRequest.Credentials, function(err, loginUserPacketResult)
+			{
+				if (!loginUserPacketResult)
+					loginUserPacketResult = formatEmptyUserPacket(getSessionID(pRequest));
+
+				var tmpStatus = (loginUserPacketResult.LoggedIn && loginUserPacketResult.UserID > 0) ?
 					'success' :
 					'failed';
 
 				_Log.trace('User login ' + tmpStatus);
 
-				//set memcache session to login result
-				setSessionLoginStatus(pRequest, loginResult);
+				//set the SessionID using cookie ID
+				loginUserPacketResult.SessionID = getSessionID(pRequest);
 
-				fCallBack(err, loginResult);
+				//set memcache session to login result
+				setSessionLoginStatus(pRequest, loginUserPacketResult);
+
+				return fCallBack(err, loginUserPacketResult);
 			});
 		};
 
@@ -231,23 +372,131 @@ var OratorSession = function()
 		 */
 		var defaultAuthenticator = function(pCredentials, fCallBack)
 		{
-			var tmpAuthResult = (
+			if (pCredentials.username === _Settings.DefaultUsername &&
+				pCredentials.password === _Settings.DefaultPassword)
 			{
-				LoggedIn: false,
-				UserID: 0,
-				Role: '',
-				RoleIndex: 0
-			});
+				return fCallBack(null, formatUserPacket(null, true, 'Administrator', 5, 1));
+			}
+			else
+			{
+				return fCallBack('Invalid username or password!');
+			}
+		};
 
-			if (pCredentials.username === _Settings.Session.DefaultUsername &&
-				pCredentials.password === _Settings.Session.DefaultPassword)
+		/**
+		 * Log a user out from the system
+		 *
+		 * @method deAuthenticateUser
+		 */
+		var deAuthenticateUser = function(pRequest, pResponse, fNext)
+		{
+			_Log.info('Deauthentication success', {RequestID:pRequest.RequestUUID,Action:'Deauthenticate',Success:true});
+			var tmpUserPacket = formatEmptyUserPacket(pRequest[_Settings.SessionCookieName].SessionID);
+			setSessionLoginStatus(pRequest, tmpUserPacket);
+			pResponse.send({Success: true})
+		};
+
+		/**
+		 * Checkout a session token which can be used by 3rd-party connection to use this User session
+		 *
+		 * @method getSessionToken
+		 */
+		var getSessionToken = function(pRequest, pResponse, fCallback)
+		{
+			checkoutSessionToken(pRequest, function(err, token)
 			{
-				tmpAuthResult.LoggedIn = true;
-				tmpAuthResult.UserID = 1;
+				if (err)
+				{
+					pResponse.send({Error: err});
+				}
+				else
+				{
+					pResponse.send({Token: token});
+				}
+
+				return fCallback();
+			});
+		}
+
+		/**
+		 * Checkout a session token which can be used by 3rd-party connection to use this User session
+		 *
+		 * @method checkoutSessionToken
+		 */
+		var checkoutSessionToken = function(pRequest, fCallback)
+		{
+			var tmpSession = pRequest[_Settings.SessionCookieName];
+			if (!tmpSession.LoggedIn)
+			{
+				return fCallback('User not logged in!');
 			}
 
-			fCallBack(null, tmpAuthResult);
-		};
+			var tmpUUID = 'TempSessionToken-' + libUUIDGenerator.getUUID();
+
+			_Memcached.set(tmpUUID, tmpSession.SessionID, _Settings.SessionTempTokenTimeout,
+				function(pError)
+				{
+					if (pError)
+						_Log.trace('Error checking out a session token!'+pError, {SessionID: tmpSession.SessionID});
+					else
+						_Log.trace('Checked out a session token: ' + tmpUUID, {IDUser: tmpSession.UserID, SessionID: tmpSession.SessionID});
+
+					return fCallback(pError, tmpUUID);
+				});
+		}
+
+		//TODO: make this extensible
+		var formatUserPacketFromRecord = function(pUserRecord)
+		{
+			return formatUserPacket(
+				null, //set by authenticateUser
+				true, //LoggedIn
+				pUserRecord.UserRole, //amended property
+				pUserRecord.IDRole,
+				pUserRecord.IDUser,
+				pUserRecord.IDCustomer,
+				pUserRecord.Title,
+				pUserRecord.NameFirst,
+				pUserRecord.NameLast,
+				pUserRecord.Email
+				);
+		}
+
+		//TODO: make this extensible
+		var formatEmptyUserPacket = function(pSessionID)
+		{
+			return formatUserPacket(
+				pSessionID, //SessionID
+				false, //LoggedIn
+				'None', //UserRole
+				0, //UserRoleIndex
+				0, //UserID
+				0, //CustomerID
+				'', //Title
+				'', //NameFirst
+				'', //NameLast
+				'' //Email
+				);
+		}
+
+		//TODO: make this extensible
+		var formatUserPacket = function(pSessionID, pStatus, pRole, pRoleIndex, pUserID, pCustomerID, pTitle, pNameFirst, pNameLast, pEmail)
+		{
+			return (
+			{
+				Version: process.env.npm_package_version,
+				SessionID: pSessionID,
+				LoggedIn: pStatus,
+				UserRole: pRole,
+				UserRoleIndex: pRoleIndex,
+				UserID: pUserID,
+				CustomerID: pCustomerID,
+				Title: pTitle,
+				NameFirst: pNameFirst,
+				NameLast: pNameLast,
+				Email: pEmail
+			});
+		}
 
 		var tmpOratorSession = (
 		{
@@ -256,6 +505,12 @@ var OratorSession = function()
 			authenticateUser: authenticateUser,
 			defaultAuthenticator: defaultAuthenticator,
 			//remoteAuthenticator: remoteAuthenticator,
+			checkSession: checkSession,
+			deAuthenticateUser: deAuthenticateUser,
+			checkoutSessionToken: checkoutSessionToken,
+			formatEmptyUserPacket: formatEmptyUserPacket,
+			formatUserPacketFromRecord: formatUserPacketFromRecord,
+			formatUserPacket: formatUserPacket,
 			new: createNew
 		});
 

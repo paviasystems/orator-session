@@ -15,16 +15,14 @@ var _MockSettings = (
 	Product: 'MockOratorAlternate',
 	ProductVersion: '0.0.0',
 	APIServerPort: 8080,
-	Session:
-		{
-			"Timeout":60,
-			"MemcachedURL":"192.168.59.103:11211",
-			"DefaultUsername": "user",
-			"DefaultPassword": "test"
-		}
+	"SessionTimeout":60,
+	"MemcachedURL":"192.168.99.100:11211",
+	"DefaultUsername": "user",
+	"DefaultPassword": "test"
 });
 
 var libSuperTest = require('supertest').agent('http://localhost:' + _MockSettings.APIServerPort + '/');
+var libSuperTest2 = require('supertest').agent('http://localhost:' + _MockSettings.APIServerPort + '/');
 
 suite
 (
@@ -173,8 +171,8 @@ suite
 					{
 						libSuperTest
 								.get('AUTH?username=' +
-									encodeURIComponent(_MockSettings.Session.DefaultUsername) + '&password=' +
-									encodeURIComponent(_MockSettings.Session.DefaultPassword))
+									encodeURIComponent(_MockSettings.DefaultUsername) + '&password=' +
+									encodeURIComponent(_MockSettings.DefaultPassword))
 								.end(
 									function (pError, pResponse)
 									{
@@ -202,6 +200,107 @@ suite
 										fDone();
 									}
 								);
+					}
+				);
+
+				var tmpSessionToken = '';
+				test
+				(
+					'Checkout a temp session token',
+					function(fDone)
+					{
+						libSuperTest
+							.get('1.0/CheckoutSessionToken')
+							.end(
+								function (pError, pResponse)
+								{
+									Expect(pResponse.body.Token)
+										.to.contain('TempSessionToken-');
+									Expect(pResponse.statusCode)
+										.to.equal(200);
+
+									tmpSessionToken = pResponse.body.Token;
+
+									fDone();
+								}
+							);
+					}
+				);
+				test
+				(
+					'Test session token',
+					function(fDone)
+					{
+						libSuperTest2
+							.get('1.0/CheckSession?SessionToken=' + tmpSessionToken)
+							.end(
+								function (pError, pResponse)
+								{
+									Expect(pResponse.body.LoggedIn)
+										.to.equal(true);
+									Expect(pResponse.statusCode)
+										.to.equal(200);
+									fDone();
+								}
+							);
+					}
+				);
+
+				test
+				(
+					'Test Deauthenticate',
+					function(fDone)
+					{
+						libSuperTest
+							.get('1.0/Deauthenticate')
+							.end(
+								function (pError, pResponse)
+								{
+									Expect(pResponse.body.Success)
+										.to.equal(true);
+									Expect(pResponse.statusCode)
+										.to.equal(200);
+									fDone();
+								}
+							);
+					}
+				);
+				test
+				(
+					'Ensure logged-out status is maintained',
+					function(fDone)
+					{
+						libSuperTest
+							.get('1.0/CheckSession')
+							.end(
+								function (pError, pResponse)
+								{
+									Expect(pResponse.body.LoggedIn)
+										.to.equal(false);
+									Expect(pResponse.statusCode)
+										.to.equal(200);
+									fDone();
+								}
+							);
+					}
+				);
+				test
+				(
+					'Ensure logged-in status of token user is maintained',
+					function(fDone)
+					{
+						libSuperTest2
+							.get('1.0/CheckSession')
+							.end(
+								function (pError, pResponse)
+								{
+									Expect(pResponse.body.LoggedIn)
+										.to.equal(true);
+									Expect(pResponse.statusCode)
+										.to.equal(200);
+									fDone();
+								}
+							);
 					}
 				);
 			}
