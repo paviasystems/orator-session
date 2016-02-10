@@ -58,11 +58,19 @@ var OratorSession = function()
 		};
 
 		/**
-		 * Get SessionID from browser session cookie ID
+		 * Get SessionID
 		 */
 		var getSessionID = function(pRequest)
 		{
-			return pRequest.cookies[_Settings.SessionCookieName];
+			//SessionID first source from session cookie, then fallback to session state object
+			var tmpSessionID = pRequest.cookies[_Settings.SessionCookieName];
+			if (!tmpSessionID)
+			{
+				//this happens when new cookie is set but not received by client
+				if (pRequest[_Settings.SessionCookieName])
+					tmpSessionID = pRequest[_Settings.SessionCookieName].SessionID;
+			}
+			return tmpSessionID;
 		}
 
 		/**
@@ -269,6 +277,12 @@ var OratorSession = function()
 		 */
 		var setSessionLoginStatus = function(pRequest, pUserPacket)
 		{
+			if (!pUserPacket.SessionID)
+			{
+				//set the SessionID using cookie ID
+				pUserPacket.SessionID = getSessionID(pRequest);
+			}
+
 			pRequest[_Settings.SessionCookieName] = pUserPacket;
 
 			_Log.trace('Setting session status.', {SessionID:pRequest[_Settings.SessionCookieName].SessionID, Session: pRequest[_Settings.SessionCookieName]});
@@ -511,6 +525,7 @@ var OratorSession = function()
 			formatEmptyUserPacket: formatEmptyUserPacket,
 			formatUserPacketFromRecord: formatUserPacketFromRecord,
 			formatUserPacket: formatUserPacket,
+			setSessionLoginStatus: setSessionLoginStatus,
 			new: createNew
 		});
 
