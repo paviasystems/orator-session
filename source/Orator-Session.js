@@ -210,12 +210,20 @@ var OratorSession = function()
 			// Create a new session UUID...
 			var tmpUUID = libUUIDGenerator.getUUID();
 			var tmpSessionID = 'SES'+tmpUUID;
+			var tmpNewSessionData = formatEmptyUserPacket(tmpSessionID, tmpUUID);
+
+			if (pRequest.SessionOverrideData)
+			{
+				_Log.info('SessionOverride data is specified.');
+
+				tmpSessionID = pRequest.SessionOverrideData.SessionID;
+				tmpNewSessionData = pRequest.SessionOverrideData;
+			}
+
 			_Log.info('Creating a new session', {SessionID:tmpSessionID});
 
 			// This is the state stored in Memcached
 			// We store this much to prevent roundtrips to the database each request
-			var tmpNewSessionData = formatEmptyUserPacket(tmpSessionID, tmpUUID);
-
 			var tmpNewSessionDataString = JSON.stringify(tmpNewSessionData);
 
 			_Memcached.get(tmpSessionID,
@@ -519,6 +527,7 @@ var OratorSession = function()
 			authenticateUser: authenticateUser,
 			defaultAuthenticator: defaultAuthenticator,
 			//remoteAuthenticator: remoteAuthenticator,
+			createSession: createSession,
 			checkSession: checkSession,
 			deAuthenticateUser: deAuthenticateUser,
 			checkoutSessionToken: checkoutSessionToken,
