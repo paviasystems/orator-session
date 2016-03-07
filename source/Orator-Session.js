@@ -20,9 +20,9 @@ var OratorSession = function()
 			_Settings.SessionCookieName = 'UserSession';
 		if (!_Settings.SessionTempTokenTimeout)
 			_Settings.SessionTempTokenTimeout = 60;
-		if (!_Settings.SessionStrategy && //TODO: improve this settings fallback
-			_Settings.SessionStrategy !== 'Memcached' &&
-			_Settings.SessionStrategy !== 'InMemory')
+		if (!_Settings.SessionStrategy || //TODO: improve this settings fallback
+			(_Settings.SessionStrategy !== 'Memcached' &&
+			_Settings.SessionStrategy !== 'InMemory'))
 			_Settings.SessionStrategy = 'Memcached';
 
 		var libCookieParser = require('restify-cookies');
