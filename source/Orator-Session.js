@@ -20,14 +20,15 @@ var OratorSession = function()
 			_Settings.SessionCookieName = 'UserSession';
 		if (!_Settings.SessionTempTokenTimeout)
 			_Settings.SessionTempTokenTimeout = 60;
+		if (!_Settings.SessionStrategy && //TODO: improve this settings fallback
+			_Settings.SessionStrategy !== 'Memcached' &&
+			_Settings.SessionStrategy !== 'InMemory')
+			_Settings.SessionStrategy = 'Memcached';
 
 		var libCookieParser = require('restify-cookies');
 		var libUUIDGenerator = require('fable-uuid').new(pFable.settings);
 
-		var libMemcached = require('memcached');
-		var _Memcached = false;
-		_Log.trace('Connecting to Memcached '+_Settings.MemcachedURL);
-		_Memcached = new libMemcached(_Settings.MemcachedURL);
+		var libSessionStore = require(__dirname + '/strategies/' + _Settings.SessionStrategy).new(pFable);
 
 		/**
 		* Wire up routes for the OratorSession
@@ -91,7 +92,7 @@ var OratorSession = function()
 			else
 			{
 				//_Log.trace('Cookie reports session '+getSessionID(pRequest));
-				_Memcached.get(getSessionID(pRequest),
+				libSessionStore.get(getSessionID(pRequest),
 					function(pError, pData)
 					{
 						if (pError)
@@ -109,7 +110,7 @@ var OratorSession = function()
 							{
 								//_Log.trace('Restoring session', {SessionID:getSessionID(pRequest)});
 								// Touch the session so we reset timeout.
-								_Memcached.touch(getSessionID(pRequest), _Settings.SessionTimeout, function (pError) { /* TODO: Log errors on the touch. */ });
+								libSessionStore.touch(getSessionID(pRequest), _Settings.SessionTimeout, function (pError) { /* TODO: Log errors on the touch. */ });
 								pRequest[_Settings.SessionCookieName] = JSON.parse(pData)
 								
 								return fNext();
@@ -132,7 +133,7 @@ var OratorSession = function()
 				return fNext();
 
 			//validate SessionToken
-			_Memcached.get(pRequest.query.SessionToken,
+			libSessionStore.get(pRequest.query.SessionToken,
 				function(pError, pSessionIdentifierData)
 				{
 					if (!pSessionIdentifierData)
@@ -142,7 +143,7 @@ var OratorSession = function()
 					}
 
 					//verify that parent session is still active
-					_Memcached.get(pSessionIdentifierData,
+					libSessionStore.get(pSessionIdentifierData,
 						function(pError, pData)
 						{
 							if (pError)
@@ -226,13 +227,13 @@ var OratorSession = function()
 			// We store this much to prevent roundtrips to the database each request
 			var tmpNewSessionDataString = JSON.stringify(tmpNewSessionData);
 
-			_Memcached.get(tmpSessionID,
+			libSessionStore.get(tmpSessionID,
 				function(pError, pData)
 				{
 					if (pError)
 					{
 						//_Log.trace('Error checking if session exists in memcache'+pError, {SessionID:tmpSessionID});
-						_Memcached.set(tmpSessionID, tmpNewSessionDataString, _Settings.SessionTimeout,
+						libSessionStore.set(tmpSessionID, tmpNewSessionDataString, _Settings.SessionTimeout,
 							function(pError)
 							{
 								if (pError) _Log.trace('Error setting session: '+pError, {SessionID:tmpSessionID});
@@ -247,7 +248,7 @@ var OratorSession = function()
 						if (typeof(pData === undefined))
 						{
 							//_Log.trace('Session ID not found, creating', {SessionID:tmpSessionID});
-							_Memcached.set(tmpSessionID, tmpNewSessionDataString, _Settings.SessionTimeout,
+							libSessionStore.set(tmpSessionID, tmpNewSessionDataString, _Settings.SessionTimeout,
 								function(pError)
 								{
 									if (pError) _Log.trace('Error setting session: '+pError, {SessionID:tmpSessionID});
@@ -260,7 +261,7 @@ var OratorSession = function()
 						else
 						{
 							//_Log.trace('Session UUID collision.. this should NEVER happen', {SessionID:tmpSessionID, SessionData:pData});
-							_Memcached.replace(tmpSessionID, tmpNewSessionDataString, 600,
+							libSessionStore.replace(tmpSessionID, tmpNewSessionDataString, 600,
 								function(pError)
 								{
 									if (pError) _Log.trace('Error replacing session: '+pError, {SessionID:tmpSessionID});
@@ -294,7 +295,7 @@ var OratorSession = function()
 			pRequest[_Settings.SessionCookieName] = pUserPacket;
 
 			_Log.trace('Setting session status.', {SessionID:pRequest[_Settings.SessionCookieName].SessionID, Session: pRequest[_Settings.SessionCookieName]});
-			_Memcached.replace(pRequest[_Settings.SessionCookieName].SessionID, JSON.stringify(pRequest[_Settings.SessionCookieName]), _Settings.SessionTimeout,
+			libSessionStore.replace(pRequest[_Settings.SessionCookieName].SessionID, JSON.stringify(pRequest[_Settings.SessionCookieName]), _Settings.SessionTimeout,
 				function(pError)
 				{
 					if (pError)
@@ -455,7 +456,7 @@ var OratorSession = function()
 
 			var tmpUUID = 'TempSessionToken-' + libUUIDGenerator.getUUID();
 
-			_Memcached.set(tmpUUID, tmpSession.SessionID, _Settings.SessionTempTokenTimeout,
+			libSessionStore.set(tmpUUID, tmpSession.SessionID, _Settings.SessionTempTokenTimeout,
 				function(pError)
 				{
 					if (pError)

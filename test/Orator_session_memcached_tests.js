@@ -16,6 +16,7 @@ var _MockSettings = (
 	ProductVersion: '0.0.0',
 	APIServerPort: 8080,
 	"SessionTimeout":60,
+	"SessionStrategy": "Memcached",
 	"MemcachedURL":"192.168.99.100:11211",
 	"DefaultUsername": "user",
 	"DefaultPassword": "test"
@@ -59,7 +60,7 @@ suite
 
 		suite
 		(
-			'Orator Session with Orator web Server',
+			'Memcached Orator Session with Orator web Server',
 			function()
 			{
 				var _Orator;
@@ -301,6 +302,34 @@ suite
 									fDone();
 								}
 							);
+					}
+				);
+				test
+				(
+					'Request a session that doesnt exist',
+					function(fDone)
+					{
+						libSuperTest2
+							.get('1.0/CheckSession')
+							.set( 'Cookie', 'UserSession=DoesNotExist' )
+							.end(
+								function (pError, pResponse)
+								{
+									Expect(pResponse.body.LoggedIn)
+										.to.equal(false);
+									Expect(pResponse.statusCode)
+										.to.equal(200);
+									fDone();
+								}
+							);
+					}
+				);
+				test
+				(
+					'Shutdown Orator WebServer',
+					function()
+					{
+						_Orator.stopWebServer();
 					}
 				);
 			}
