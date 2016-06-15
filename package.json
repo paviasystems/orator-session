@@ -1,6 +1,6 @@
 {
   "name": "orator-session",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "Session state and authentication manager for Orator Restful web API server.",
   "main": "source/Orator-Session.js",
   "scripts": {
@@ -30,7 +30,7 @@
     "mocha": "2.1.0",
     "supertest": "0.15.0",
     "fable": "^0.1.6",
-    "orator": "^1.0.12"
+    "orator": "^1.0.18"
   },
   "optionalDependencies": {
     "nodegrind": "0.4.0"

@@ -56,6 +56,14 @@ var OratorSession = function()
 
 			//We could add routes here to support different auth-types
 			// depending on configuration (WWW-Auth for example)
+
+			//In case of an Orator proxy, these endpoints need to be omitted
+			if (pFable.webServer)
+			{
+				pFable.omitProxyRoute('1.0/Deauthenticate');
+				pFable.omitProxyRoute('1.0/CheckSession');
+				pFable.omitProxyRoute('1.0/CheckoutSessionToken');
+			}
 		};
 
 		/**
