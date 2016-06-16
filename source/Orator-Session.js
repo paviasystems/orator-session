@@ -58,7 +58,7 @@ var OratorSession = function()
 			// depending on configuration (WWW-Auth for example)
 
 			//In case of an Orator proxy, these endpoints need to be omitted
-			if (pFable.webServer)
+			if (pFable.omitProxyRoute)
 			{
 				pFable.omitProxyRoute('1.0/Deauthenticate');
 				pFable.omitProxyRoute('1.0/CheckSession');
