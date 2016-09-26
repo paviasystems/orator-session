@@ -329,8 +329,8 @@ var OratorSession = function()
 					RequestUUID:pRequest.RequestUUID,
 					RequestURL:pRequest.url,
 					SessionID:pRequest[_Settings.SessionCookieName].SessionID,
-					IDCustomer:pRequest[_Settings.SessionCookieName].CustomerID,
-					IDUser:pRequest[_Settings.SessionCookieName].UserID,
+					CustomerID:pRequest[_Settings.SessionCookieName].CustomerID,
+					UserID:pRequest[_Settings.SessionCookieName].UserID,
 				});
 			// This duplicates the session data for the Meadow endpoints //TODO: change meadow to use _Settings.SessionCookieName
 			pRequest.SessionData = pRequest[_Settings.SessionCookieName];
