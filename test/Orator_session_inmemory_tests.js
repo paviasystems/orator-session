@@ -31,6 +31,7 @@ suite
 	{
 		var _Orator;
 		var _OratorSession;
+		var _SessionID;
 
 		setup
 		(
@@ -298,6 +299,8 @@ suite
 										.to.equal(true);
 									Expect(pResponse.statusCode)
 										.to.equal(200);
+									
+									_SessionID = pResponse.body.SessionID;
 									fDone();
 								}
 							);
@@ -321,6 +324,18 @@ suite
 									fDone();
 								}
 							);
+					}
+				);
+				test
+				(
+					'Lookup user id from session id (internal)',
+					function(fDone)
+					{
+						_OratorSession.getSessionUserID(_SessionID, function(pError, pUserID)
+						{
+							Expect(pUserID).to.equal(1);
+							return fDone();
+						});
 					}
 				);
 				test

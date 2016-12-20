@@ -476,6 +476,28 @@ var OratorSession = function()
 				});
 		}
 
+		/**
+		 * Lookup session from session store, but only retrieve related userID key
+		 *
+		 * @method getSessionUserID
+		 */
+		var getSessionUserID = function(pSessionID, fCallback)
+		{
+			libSessionStore.get(pSessionID,
+				function(pError, pData)
+				{
+					var tmpUserID = 0;
+					if (pData)
+					{
+						var tmpSessionData = JSON.parse(pData);
+						if (tmpSessionData.UserID)
+							tmpUserID = tmpSessionData.UserID;
+					}
+
+					return fCallback(pError, tmpUserID);
+				});
+		}
+
 		//TODO: make this extensible
 		var formatUserPacketFromRecord = function(pUserRecord)
 		{
@@ -540,6 +562,7 @@ var OratorSession = function()
 			checkSession: checkSession,
 			deAuthenticateUser: deAuthenticateUser,
 			checkoutSessionToken: checkoutSessionToken,
+			getSessionUserID: getSessionUserID,
 			formatEmptyUserPacket: formatEmptyUserPacket,
 			formatUserPacketFromRecord: formatUserPacketFromRecord,
 			formatUserPacket: formatUserPacket,
