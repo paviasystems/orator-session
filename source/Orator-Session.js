@@ -235,6 +235,8 @@ var OratorSession = function()
 			// We store this much to prevent roundtrips to the database each request
 			var tmpNewSessionDataString = JSON.stringify(tmpNewSessionData);
 
+			var tmpCookieDomain = getWildcardCookieDomain(pRequest);
+
 			libSessionStore.get(tmpSessionID,
 				function(pError, pData)
 				{
@@ -246,7 +248,7 @@ var OratorSession = function()
 							{
 								if (pError) _Log.trace('Error setting session: '+pError, {SessionID:tmpSessionID});
 								pRequest[_Settings.SessionCookieName] = tmpNewSessionData;
-								pResponse.setCookie(_Settings.SessionCookieName,tmpNewSessionData.SessionID, {path: '/', maxAge: _Settings.SessionTimeout, httpOnly: true });
+								pResponse.setCookie(_Settings.SessionCookieName,tmpNewSessionData.SessionID, {path: '/', maxAge: _Settings.SessionTimeout, httpOnly: true, domain: tmpCookieDomain });
 								return fNext();
 							}
 						);
@@ -261,7 +263,7 @@ var OratorSession = function()
 								{
 									if (pError) _Log.trace('Error setting session: '+pError, {SessionID:tmpSessionID});
 									pRequest[_Settings.SessionCookieName] = tmpNewSessionData;
-									pResponse.setCookie(_Settings.SessionCookieName,tmpNewSessionData.SessionID, {path: '/', maxAge: _Settings.SessionTimeout, httpOnly: true });
+									pResponse.setCookie(_Settings.SessionCookieName,tmpNewSessionData.SessionID, {path: '/', maxAge: _Settings.SessionTimeout, httpOnly: true, domain: tmpCookieDomain });
 									return fNext();
 								}
 							);
@@ -274,7 +276,7 @@ var OratorSession = function()
 								{
 									if (pError) _Log.trace('Error replacing session: '+pError, {SessionID:tmpSessionID});
 									pRequest[_Settings.SessionCookieName] = tmpNewSessionData;
-									pResponse.setCookie(_Settings.SessionCookieName,tmpNewSessionData.SessionID, {path: '/', maxAge: _Settings.SessionTimeout, httpOnly: true });
+									pResponse.setCookie(_Settings.SessionCookieName,tmpNewSessionData.SessionID, {path: '/', maxAge: _Settings.SessionTimeout, httpOnly: true, domain: tmpCookieDomain });
 									return fNext();
 								}
 							);
@@ -496,6 +498,62 @@ var OratorSession = function()
 
 					return fCallback(pError, tmpUserID);
 				});
+		}
+
+		/**
+		 * Get the public-facing server domain name
+		 *
+		 * @method getServerHostDomain
+		 */
+		var getServerHostDomain = function(pRequest)
+		{
+			if (!pRequest ||
+				!pRequest.headers)
+			{
+				_Log.warn('getServerHostDomain -- request object missing headers!');
+				return false;
+			}
+			
+			var tmpHostDomain = '';
+			if (pRequest.headers['origin']) //some reverse proxies will give us this header
+			{
+				tmpHostDomain = pRequest.headers['origin'].replace('http://', '').replace('https://', '');
+			}
+			else
+			{
+				tmpHostDomain = pRequest.headers.host;
+			}
+
+			return tmpHostDomain;
+		}
+
+		/**
+		 * If the domain is >3 tiers, then return a domain with only the first 3 tiers (default for shared auth with microservices architecture)
+		 * e.g. myapp.mainapp.company.com -> mainapp.company.com
+		 *
+		 * @method getCookieDomain
+		 */
+		var getWildcardCookieDomain = function(pRequest)
+		{
+			var tmpHostDomain = getServerHostDomain(pRequest);
+
+			//skip setting cookie domain for mobile apps
+			if (pRequest.headers['user-agent'] &&
+				!!pRequest.headers['user-agent'].match(/iOS/))
+			{
+				return null;
+			}
+
+			var domainParts = tmpHostDomain.split('.');
+			if (domainParts.length >= 3)
+			{
+				return domainParts[domainParts.length-3] + '.' + domainParts[domainParts.length-2] + '.' + domainParts[domainParts.length-1];
+			}
+			else
+			{
+				//else don't use wildcards
+				return null;
+			}
 		}
 
 		//TODO: make this extensible
