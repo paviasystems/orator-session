@@ -545,9 +545,15 @@ var OratorSession = function()
 			}
 
 			var domainParts = tmpHostDomain.split('.');
-			if (domainParts.length >= 3)
+			if (domainParts.length >= 3 && tmpHostDomain.indexOf('paviasystems')>0)
 			{
+				//For Pavia domains (e.g. *.headlight.paviasystems.com)
 				return domainParts[domainParts.length-3] + '.' + domainParts[domainParts.length-2] + '.' + domainParts[domainParts.length-1];
+			}
+			else if (domainParts.length >= 2 && tmpHostDomain.indexOf('paviasystems')<0)
+			{
+				//For other domains (e.g. *.idoteconstruction.com)
+				return domainParts[domainParts.length-2] + '.' + domainParts[domainParts.length-1];
 			}
 			else
 			{
