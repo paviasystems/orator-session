@@ -517,7 +517,8 @@ var OratorSession = function()
 			var tmpHostDomain = '';
 			if (pRequest.headers['origin']) //some reverse proxies will give us this header
 			{
-				tmpHostDomain = pRequest.headers['origin'].replace('http://', '').replace('https://', '');
+				//remove scheme and port (just want domain)
+				tmpHostDomain = pRequest.headers['origin'].replace('http://', '').replace('https://', '').replace(/:.*/, '');
 			}
 			else
 			{
