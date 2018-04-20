@@ -27,6 +27,8 @@ var OratorSession = function()
 
 		var libCookieParser = require('restify-cookies');
 		var libUUIDGenerator = require('fable-uuid').new(pFable.settings);
+		var libAsync = require('async');
+		var libMoment = require('moment');
 
 		var libSessionStore = require(__dirname + '/strategies/' + _Settings.SessionStrategy).new(pFable);
 
@@ -617,6 +619,43 @@ var OratorSession = function()
 			});
 		}
 
+		/**
+		 * Lookup session from session store. Retrieve related user records
+		 *
+		 * @method getSessionUserID
+		 */
+		var getActiveUserSessions = function(pSessionIDs, fCallback)
+		{
+			var tmpActiveUsers = [];
+			libAsync.eachSeries(pSessionIDs, (pSessionID, fNext) =>
+			{
+				libSessionStore.get(pSessionID,
+					function(pError, pData)
+					{
+						if (pData)
+						{
+							var tmpSessionData = JSON.parse(pData);
+							
+							// This happen when user logout. SessionID still exists in the memcache but UserID = 0.
+							if (tmpSessionData.UserID == 0)
+								return fNext();
+
+							if (libMoment(tmpSessionData.LastLoginTime).format('YYYY-MM-DD HH:mm:ss') >= libMoment().subtract(15, 'minutes').format('YYYY-MM-DD HH:mm:ss'))
+								tmpActiveUsers.push(tmpSessionData);
+						}
+
+						return fNext();
+					});
+
+			}, (pError) =>
+			{
+				if (pError)
+					return fCallback(pError);
+					
+				return fCallback(pError, tmpActiveUsers);
+			});			
+		}
+
 		var tmpOratorSession = (
 		{
 			connectRoutes: connectRoutes,
@@ -633,6 +672,7 @@ var OratorSession = function()
 			formatUserPacketFromRecord: formatUserPacketFromRecord,
 			formatUserPacket: formatUserPacket,
 			setSessionLoginStatus: setSessionLoginStatus,
+			getActiveUserSessions: getActiveUserSessions,
 			new: createNew
 		});
 
