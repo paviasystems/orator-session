@@ -296,7 +296,7 @@ var OratorSession = function()
 		 * @param {Boolean} pStatus The status of being logged in (true or false)
 		 * @param {String} pRole The role of the user
 		 */
-		var setSessionLoginStatus = function(pRequest, pUserPacket)
+		var setSessionLoginStatus = function(pRequest, pUserPacket, fOptionalCallback)
 		{
 			if (!pUserPacket.SessionID)
 			{
@@ -314,6 +314,9 @@ var OratorSession = function()
 					{
 						_Log.trace('Error setting session status: '+pError, {SessionID:pRequest[_Settings.SessionCookieName].SessionID, Session: pRequest[_Settings.SessionCookieName]});
 					}
+
+					if (fOptionalCallback)
+						return fOptionalCallback(pError);
 				}
 			);
 		};
