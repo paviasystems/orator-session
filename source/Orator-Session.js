@@ -659,9 +659,15 @@ var OratorSession = function()
 			});			
 		}
 
+		var sessionStore = function()
+		{
+			return libSessionStore;
+		}
+
 		var tmpOratorSession = (
 		{
 			connectRoutes: connectRoutes,
+			sessionStore: sessionStore,
 			checkIfLoggedIn: checkIfLoggedIn,
 			authenticateUser: authenticateUser,
 			defaultAuthenticator: defaultAuthenticator,
