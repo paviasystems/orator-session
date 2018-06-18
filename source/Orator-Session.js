@@ -79,6 +79,13 @@ var OratorSession = function()
 				if (pRequest[_Settings.SessionCookieName])
 					tmpSessionID = pRequest[_Settings.SessionCookieName].SessionID;
 			}
+
+			if (pRequest.headers.hasOwnProperty('authorization')
+				&& pRequest.headers.authorization.indexOf('Bearer') == 0)
+			{
+				tmpSessionID = pRequest.headers.authorization.split(" ")[1];
+			}
+
 			return tmpSessionID;
 		}
 
@@ -357,6 +364,17 @@ var OratorSession = function()
 				return (pRequest[_Settings.SessionCookieName].LoggedIn && pRequest[_Settings.SessionCookieName].UserID > 0);
 			}
 		 };
+
+		 var authenticateWithBearer = function(pRequest, fCallback)
+		 {
+			var tmpSessionID = pRequest.headers['Authorization'];
+			libSessionStore.get(tmpSessionID,
+				function(pError, pData)
+				{
+			
+				}
+			);
+		 }
 
 		/**
 		 * Log a user into the system using authenticator function
