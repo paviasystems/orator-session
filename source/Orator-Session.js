@@ -365,18 +365,7 @@ var OratorSession = function()
 			}
 		 };
 
-		 var authenticateWithBearer = function(pRequest, fCallback)
-		 {
-			var tmpSessionID = pRequest.headers['Authorization'];
-			libSessionStore.get(tmpSessionID,
-				function(pError, pData)
-				{
-			
-				}
-			);
-		 }
-
-		/**
+		 /**
 		 * Log a user into the system using authenticator function
 		 *
 		 * @method authenticateUser
