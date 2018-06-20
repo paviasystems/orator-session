@@ -80,7 +80,14 @@ var OratorSession = function()
 				//this happens when new cookie is set but not received by client
 				if (pRequest[_Settings.SessionCookieName])
 					tmpSessionID = pRequest[_Settings.SessionCookieName].SessionID;
+
+				if (pRequest.headers.hasOwnProperty('authorization')
+					&& pRequest.headers.authorization.indexOf('Bearer') == 0)
+				{
+					tmpSessionID = pRequest.headers.authorization.split(" ")[1];
+				}
 			}
+
 			return tmpSessionID;
 		}
 
@@ -363,7 +370,7 @@ var OratorSession = function()
 			}
 		 };
 
-		/**
+		 /**
 		 * Log a user into the system using authenticator function
 		 *
 		 * @method authenticateUser
