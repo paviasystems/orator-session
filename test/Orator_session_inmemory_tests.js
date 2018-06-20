@@ -14,7 +14,7 @@ var _MockSettings = (
 {
 	Product: 'MockOratorAlternate',
 	ProductVersion: '0.0.0',
-	APIServerPort: 8080,
+	APIServerPort: 8999,
 	"SessionTimeout":60,
 	"SessionStrategy": "InMemory",
 	"DefaultUsername": "user",
@@ -301,6 +301,27 @@ suite
 										.to.equal(200);
 									
 									_SessionID = pResponse.body.SessionID;
+									fDone();
+								}
+							);
+					}
+				);
+				test
+				(
+					'Try bearer-token auth',
+					function(fDone)
+					{
+						libSuperTest2
+							.get('1.0/CheckSession')
+							.set( 'Cookie', 'UserSession=' )
+							.set('Authorization', 'Bearer ' + _SessionID)
+							.end(
+								function (pError, pResponse)
+								{
+									Expect(pResponse.body.LoggedIn)
+										.to.equal(true);
+									Expect(pResponse.statusCode)
+										.to.equal(200);
 									fDone();
 								}
 							);

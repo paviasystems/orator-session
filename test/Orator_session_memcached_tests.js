@@ -14,10 +14,10 @@ var _MockSettings = (
 {
 	Product: 'MockOratorAlternate',
 	ProductVersion: '0.0.0',
-	APIServerPort: 8080,
+	APIServerPort: 8999,
 	"SessionTimeout":60,
 	"SessionStrategy": "Memcached",
-	"MemcachedURL":"192.168.99.100:11211",
+	"MemcachedURL":"127.0.0.1:11211",
 	"DefaultUsername": "user",
 	"DefaultPassword": "test"
 });
