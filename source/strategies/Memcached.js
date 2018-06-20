@@ -41,6 +41,11 @@ var MemcachedStrategy = function()
 			return _Memcached.replace(pIDSession, pSessionDataString, pTimeout, fCallback);
 		}
 
+		var del = function(pKey, fCallback)
+		{
+			return _Memcached.del(pKey, fCallback);
+		}
+
 		/**
 		* Container Object for our Factory Pattern
 		*/
@@ -50,6 +55,7 @@ var MemcachedStrategy = function()
 			touch: touch,
 			set: set,
 			replace: replace,
+			del: del,
 			new: createNew
 		});
 

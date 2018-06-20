@@ -119,6 +119,12 @@ var InMemoryStrategy = function()
 			return fCallback(null);
 		}
 
+		var del = function(pKey, fCallback)
+		{
+			delete _MemorySessionMap[pKey];
+			return fCallback();
+		}
+
 		/**
 		* Container Object for our Factory Pattern
 		*/
@@ -128,6 +134,7 @@ var InMemoryStrategy = function()
 			touch: touch,
 			set: set,
 			replace: replace,
+			del: del,
 			new: createNew
 		});
 
