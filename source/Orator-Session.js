@@ -73,19 +73,24 @@ var OratorSession = function()
 		 */
 		var getSessionID = function(pRequest)
 		{
-			//SessionID first source from session cookie, then fallback to session state object
-			var tmpSessionID = pRequest.cookies[_Settings.SessionCookieName];
+			//SessionID first from Authorization header, then from session cookie, then fallback to session state object
+			let tmpSessionID = null;
+
+			if (pRequest.headers.hasOwnProperty('authorization')
+					&& pRequest.headers.authorization.indexOf('Bearer') == 0)
+			{
+				tmpSessionID = pRequest.headers.authorization.split(" ")[1];
+			}
+			else
+			{
+				tmpSessionID = pRequest.cookies[_Settings.SessionCookieName];
+			}
+
 			if (!tmpSessionID)
 			{
 				//this happens when new cookie is set but not received by client
 				if (pRequest[_Settings.SessionCookieName])
 					tmpSessionID = pRequest[_Settings.SessionCookieName].SessionID;
-
-				if (pRequest.headers.hasOwnProperty('authorization')
-					&& pRequest.headers.authorization.indexOf('Bearer') == 0)
-				{
-					tmpSessionID = pRequest.headers.authorization.split(" ")[1];
-				}
 			}
 
 			return tmpSessionID;
@@ -378,14 +383,14 @@ var OratorSession = function()
 		 */
 		var authenticateUser = function(pRequest, fAuthenticator, fCallBack)
 		{
-			_Log.trace('A user is attempting to login: ' + pRequest.Credentials.username);
+			_Log.trace('A user is attempting to login: ' + pRequest.Credentials.username, {LoginID: pRequest.Credentials.username, Action: 'Authenticate-Attempt'});
 
 			// This will fail if the username or password are equal to false.  Not exactly bad....
 			if (!pRequest.Credentials ||
 				!pRequest.Credentials.username || 
 				!pRequest.Credentials.password)
 			{
-				_Log.info('Authentication failure', {RequestID:pRequest.RequestUUID,Action:'Authenticate Validation',Success:false});
+				_Log.info('Authentication failure', {LoginID: pRequest.Credentials.username, RequestID:pRequest.RequestUUID,Action:'Authenticate Validation',Success:false});
 				return fCallBack('Bad username or password!');
 			}
 
@@ -435,7 +440,7 @@ var OratorSession = function()
 		 */
 		var deAuthenticateUser = function(pRequest, pResponse, fNext)
 		{
-			_Log.info('Deauthentication success', {RequestID:pRequest.RequestUUID,Action:'Deauthenticate',Success:true});
+			_Log.info('Deauthentication success', {LoginID: pRequest[_Settings.SessionCookieName].LoginID, RequestID:pRequest.RequestUUID,Action:'Deauthenticate',Success:true});
 			var tmpUserPacket = formatEmptyUserPacket(pRequest[_Settings.SessionCookieName].SessionID);
 			setSessionLoginStatus(pRequest, tmpUserPacket);
 			pResponse.send({Success: true})
