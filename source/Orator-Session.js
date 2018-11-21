@@ -174,7 +174,14 @@ var OratorSession = function()
 								return fNext();
 							}
 
-							var tmpSession = JSON.parse(pData);
+							var tmpSession = {};
+							try
+							{
+								tmpSession = JSON.parse(pData);
+							} catch (ex) {
+								_Log.error('Invalid login request data: ' + ex);
+								return fNext();
+							}
 
 							if (!tmpSession.LoggedIn)
 							{
@@ -403,7 +410,7 @@ var OratorSession = function()
 					'success' :
 					'failed';
 
-				_Log.trace('User login ' + tmpStatus);
+				_Log.trace('User login ' + tmpStatus, {LoginID: pRequest.Credentials.username, RequestID:pRequest.RequestUUID,Action:'Authenticate',Success: tmpStatus});
 
 				//set the SessionID using cookie ID
 				loginUserPacketResult.SessionID = getSessionID(pRequest);
