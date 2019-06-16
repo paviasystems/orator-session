@@ -390,18 +390,19 @@ var OratorSession = function()
 		 */
 		var authenticateUser = function(pRequest, fAuthenticator, fCallBack)
 		{
-			_Log.trace('A user is attempting to login: ' + pRequest.Credentials.username, {LoginID: pRequest.Credentials.username, Action: 'Authenticate-Attempt'});
+			var remoteIP = pRequest.headers['x-forwarded-for'] || pRequest.connection.remoteAddress;
+			_Log.trace('A user is attempting to login: ' + pRequest.Credentials.username, {RemoteIP: remoteIP, LoginID: pRequest.Credentials.username, Action: 'Authenticate-Attempt'});
 
 			// This will fail if the username or password are equal to false.  Not exactly bad....
 			if (!pRequest.Credentials ||
 				!pRequest.Credentials.username || 
 				!pRequest.Credentials.password)
 			{
-				_Log.info('Authentication failure', {LoginID: pRequest.Credentials.username, RequestID:pRequest.RequestUUID,Action:'Authenticate Validation',Success:false});
+				_Log.info('Authentication failure', {RemoteIP: remoteIP, LoginID: pRequest.Credentials.username, RequestID:pRequest.RequestUUID,Action:'Authenticate Validation',Success:false});
 				return fCallBack('Bad username or password!');
 			}
 
-			fAuthenticator(pRequest.Credentials, function(err, loginUserPacketResult)
+			fAuthenticator(pRequest, pRequest.Credentials, function(err, loginUserPacketResult)
 			{
 				if (!loginUserPacketResult)
 					loginUserPacketResult = formatEmptyUserPacket(getSessionID(pRequest));
@@ -611,8 +612,8 @@ var OratorSession = function()
 			return formatUserPacket(
 				pSessionID, //SessionID
 				false, //LoggedIn
-				'None', //UserRole
-				0, //UserRoleIndex
+				'Unauthenticated', //UserRole
+				-1, //UserRoleIndex
 				0, //UserID
 				0, //CustomerID
 				'', //Title
