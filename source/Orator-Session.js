@@ -402,7 +402,7 @@ var OratorSession = function()
 				return fCallBack('Bad username or password!');
 			}
 
-			fAuthenticator(pRequest, pRequest.Credentials, function(err, loginUserPacketResult)
+			fAuthenticator(pRequest.Credentials, function(err, loginUserPacketResult)
 			{
 				if (!loginUserPacketResult)
 					loginUserPacketResult = formatEmptyUserPacket(getSessionID(pRequest));

@@ -1,6 +1,6 @@
 {
   "name": "orator-session",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "description": "Session state and authentication manager for Orator Restful web API server.",
   "main": "source/Orator-Session.js",
   "scripts": {
