@@ -347,7 +347,8 @@ var OratorSession = function()
 		var logSession = function(pRequest, pResponse, fNext)
 		{
 			//TODO: maybe create a registry for this
-			if (pRequest.url.indexOf('/ping.html') === 0)
+			if (pRequest.url.indexOf('/ping.html') === 0 ||
+				pRequest.url.indexOf('/version') == 0)
 				return fNext();
 
 			_Log.info('Request',
