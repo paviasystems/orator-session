@@ -9,6 +9,7 @@
 const Chai = require('chai');
 const Expect = Chai.expect;
 const Assert = Chai.assert;
+const Sinon = require('sinon');
 const libSuperTest = require('supertest');
 
 let _MockSettings = (
@@ -77,6 +78,35 @@ suite
 					function()
 					{
 						_Orator = require('orator').new(_MockSettings);
+					}
+				);
+				test
+				(
+					'Orator-Session recognizes fable 2.x',
+					function()
+					{
+						// given
+						const fable2x = require('fable').new({});
+						const oratorSession = require('../source/Orator-Session.js').new(fable2x);
+						const webServer =
+						{
+							get: (route, endpointHandlerMethod) => { },
+							use: (route, endpointHandlerMethod) => { },
+						};
+						Sinon.spy(webServer, 'get');
+						Sinon.spy(webServer, 'use');
+
+						// then
+						Expect(fable2x.hasOwnProperty('fable')).to.equal(false);
+						Expect('fable' in fable2x).to.equal(true);
+						Expect(oratorSession).to.be.an('object').that.has.a.property('connectRoutes');
+
+						// when
+						oratorSession.connectRoutes(webServer);
+
+						// then
+						Expect(webServer.get.callCount).to.equal(3);
+						Expect(webServer.use.callCount).to.equal(4);
 					}
 				);
 				test

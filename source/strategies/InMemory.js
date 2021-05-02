@@ -14,7 +14,7 @@ var InMemoryStrategy = function()
 	function createNew(pFable)
 	{
 		// If a valid fable object isn't passed in, return a constructor
-		if ((typeof(pFable) !== 'object') || (!pFable.hasOwnProperty('fable')))
+		if ((typeof(pFable) !== 'object') || !('fable' in pFable))
 			return {new: createNew};
 		var _Log = pFable.log;
 		var _Settings = pFable.settings;
@@ -70,7 +70,7 @@ var InMemoryStrategy = function()
 
 			if (!_MemorySessionMap[pIDSession])
 				return fCallback('Session ID not found!');
-			
+
 			if (_MemorySessionMap[pIDSession])
 			{
 				_MemorySessionMap[pIDSession].Timestamp = Date.now();
