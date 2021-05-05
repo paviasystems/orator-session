@@ -6,32 +6,38 @@
 * @author      Jason Hillier <jason@paviasystems.com>
 */
 
-var Chai = require("chai");
-var Expect = Chai.expect;
-var Assert = Chai.assert;
+const Chai = require('chai');
+const Expect = Chai.expect;
+const Assert = Chai.assert;
+const Sinon = require('sinon');
+const libSuperTest = require('supertest');
 
-var _MockSettings = (
+let _MockSettings = (
 {
 	Product: 'MockOratorAlternate',
 	ProductVersion: '0.0.0',
 	APIServerPort: 8999,
-	"SessionTimeout":60,
-	"SessionStrategy": "InMemory",
-	"DefaultUsername": "user",
-	"DefaultPassword": "test"
+	SessionTimeout:60,
+	SessionStrategy: 'InMemory',
+	DefaultUsername: 'user',
+	DefaultPassword: 'test',
 });
 
-var libSuperTest = require('supertest').agent('http://localhost:' + _MockSettings.APIServerPort + '/');
-var libSuperTest2 = require('supertest').agent('http://localhost:' + _MockSettings.APIServerPort + '/');
+function newAgent()
+{
+	return libSuperTest.agent(`http://localhost:${_MockSettings.APIServerPort}/`);
+}
 
 suite
 (
 	'OratorSession',
 	function()
 	{
-		var _Orator;
-		var _OratorSession;
-		var _SessionID;
+		let _Orator;
+		let _OratorSession;
+		let _SessionID;
+		const _SharedAgent = newAgent();
+
 
 		setup
 		(
@@ -76,6 +82,35 @@ suite
 				);
 				test
 				(
+					'Orator-Session recognizes fable 2.x',
+					function()
+					{
+						// given
+						const fable2x = require('fable').new({});
+						const oratorSession = require('../source/Orator-Session.js').new(fable2x);
+						const webServer =
+						{
+							get: (route, endpointHandlerMethod) => { },
+							use: (route, endpointHandlerMethod) => { },
+						};
+						Sinon.spy(webServer, 'get');
+						Sinon.spy(webServer, 'use');
+
+						// then
+						Expect(fable2x.hasOwnProperty('fable')).to.equal(false);
+						Expect('fable' in fable2x).to.equal(true);
+						Expect(oratorSession).to.be.an('object').that.has.a.property('connectRoutes');
+
+						// when
+						oratorSession.connectRoutes(webServer);
+
+						// then
+						Expect(webServer.get.callCount).to.equal(3);
+						Expect(webServer.use.callCount).to.equal(4);
+					}
+				);
+				test
+				(
 					'Start Orator web Server',
 					function()
 					{
@@ -109,7 +144,7 @@ suite
 
 								_OratorSession.authenticateUser(pRequest, _OratorSession.defaultAuthenticator, function(err, result)
 								{
-									if (result && 
+									if (result &&
 										result.LoggedIn)
 									{
 										pResponse.send('Success');
@@ -132,7 +167,7 @@ suite
 					'Send test request to create session',
 					function(fDone)
 					{
-						libSuperTest
+						_SharedAgent
 								.get('TEST')
 								.end(
 									function (pError, pResponse)
@@ -151,7 +186,7 @@ suite
 					'Send request to authenticate a user (bad login)',
 					function(fDone)
 					{
-						libSuperTest
+						_SharedAgent
 								.get('AUTH?username=' +
 									encodeURIComponent('bad') + '&password=' +
 									encodeURIComponent('wrong'))
@@ -170,7 +205,7 @@ suite
 					'Send request to authenticate a user',
 					function(fDone)
 					{
-						libSuperTest
+						_SharedAgent
 								.get('AUTH?username=' +
 									encodeURIComponent(_MockSettings.DefaultUsername) + '&password=' +
 									encodeURIComponent(_MockSettings.DefaultPassword))
@@ -189,7 +224,7 @@ suite
 					'Send request to verify authorized users session',
 					function(fDone)
 					{
-						libSuperTest
+						_SharedAgent
 								.get('TEST')
 								.end(
 									function (pError, pResponse)
@@ -210,7 +245,7 @@ suite
 					'Checkout a temp session token',
 					function(fDone)
 					{
-						libSuperTest
+						_SharedAgent
 							.get('1.0/CheckoutSessionToken')
 							.end(
 								function (pError, pResponse)
@@ -227,12 +262,14 @@ suite
 							);
 					}
 				);
+				let tokenAgent;
 				test
 				(
 					'Test session token',
 					function(fDone)
 					{
-						libSuperTest2
+						tokenAgent = newAgent();
+						tokenAgent
 							.get('1.0/CheckSession?SessionToken=' + tmpSessionToken)
 							.end(
 								function (pError, pResponse)
@@ -252,7 +289,7 @@ suite
 					'Test Deauthenticate',
 					function(fDone)
 					{
-						libSuperTest
+						_SharedAgent
 							.get('1.0/Deauthenticate')
 							.end(
 								function (pError, pResponse)
@@ -271,7 +308,7 @@ suite
 					'Ensure logged-out status is maintained',
 					function(fDone)
 					{
-						libSuperTest
+						_SharedAgent
 							.get('1.0/CheckSession')
 							.end(
 								function (pError, pResponse)
@@ -290,7 +327,7 @@ suite
 					'Ensure logged-in status of token user is maintained',
 					function(fDone)
 					{
-						libSuperTest2
+						tokenAgent
 							.get('1.0/CheckSession')
 							.end(
 								function (pError, pResponse)
@@ -299,7 +336,7 @@ suite
 										.to.equal(true);
 									Expect(pResponse.statusCode)
 										.to.equal(200);
-									
+
 									_SessionID = pResponse.body.SessionID;
 									fDone();
 								}
@@ -311,9 +348,10 @@ suite
 					'Try bearer-token auth',
 					function(fDone)
 					{
-						libSuperTest2
+						const bearerAgent = newAgent();
+						bearerAgent
 							.get('1.0/CheckSession')
-							.set( 'Cookie', 'UserSession=' )
+							.set('Cookie', 'UserSession=')
 							.set('Authorization', 'Bearer ' + _SessionID)
 							.end(
 								function (pError, pResponse)
@@ -332,9 +370,10 @@ suite
 					'Request a session that doesnt exist',
 					function(fDone)
 					{
-						libSuperTest2
+						const doesNotExistAgent = newAgent();
+						doesNotExistAgent
 							.get('1.0/CheckSession')
-							.set( 'Cookie', 'UserSession=DoesNotExist' )
+							.set('Cookie', 'UserSession=DoesNotExist')
 							.end(
 								function (pError, pResponse)
 								{

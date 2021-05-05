@@ -9,7 +9,7 @@ var OratorSession = function()
 	function createNew(pFable)
 	{
 		// If a valid fable object isn't passed in, return a constructor
-		if ((typeof(pFable) !== 'object') || (!pFable.hasOwnProperty('fable')))
+		if ((typeof(pFable) !== 'object') || !('fable' in pFable))
 			return {new: createNew};
 
 		var _Settings = pFable.settings;
@@ -135,7 +135,7 @@ var OratorSession = function()
 								// Touch the session so we reset timeout.
 								libSessionStore.touch(getSessionID(pRequest), _Settings.SessionTimeout, function (pError) { /* TODO: Log errors on the touch. */ });
 								pRequest[_Settings.SessionCookieName] = JSON.parse(pData)
-								
+
 								return fNext();
 							}
 						}
@@ -362,7 +362,7 @@ var OratorSession = function()
 				});
 			// This duplicates the session data for the Meadow endpoints //TODO: change meadow to use _Settings.SessionCookieName
 			pRequest.SessionData = pRequest[_Settings.SessionCookieName];
-			
+
 			return fNext();
 		}
 
@@ -397,7 +397,7 @@ var OratorSession = function()
 
 			// This will fail if the username or password are equal to false.  Not exactly bad....
 			if (!pRequest.Credentials ||
-				!pRequest.Credentials.username || 
+				!pRequest.Credentials.username ||
 				!pRequest.Credentials.password)
 			{
 				_Log.info('Authentication failure', {RemoteIP: remoteIP, LoginID: pRequest.Credentials.username, RequestID:pRequest.RequestUUID,Action:'Authenticate Validation',Success:false});
@@ -540,7 +540,7 @@ var OratorSession = function()
 				_Log.warn('getServerHostDomain -- request object missing headers!');
 				return false;
 			}
-			
+
 			var tmpHostDomain = '';
 			if (pRequest.headers['origin']) //some reverse proxies will give us this header
 			{
@@ -660,7 +660,7 @@ var OratorSession = function()
 						if (pData)
 						{
 							var tmpSessionData = JSON.parse(pData);
-							
+
 							// This happen when user logout. SessionID still exists in the memcache but UserID = 0.
 							if (tmpSessionData.UserID == 0)
 								return fNext();
@@ -676,9 +676,9 @@ var OratorSession = function()
 			{
 				if (pError)
 					return fCallback(pError);
-					
+
 				return fCallback(pError, tmpActiveUsers);
-			});			
+			});
 		}
 
 		var sessionStore = function()
