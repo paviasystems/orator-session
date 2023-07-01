@@ -49,12 +49,12 @@ var OratorSession = function()
 			pRestServer.use(logSession);
 
 			// Deauthenticate
-			pRestServer.get('1.0/Deauthenticate', deAuthenticateUser);
+			pRestServer.get('/1.0/Deauthenticate', deAuthenticateUser);
 
-			pRestServer.get('1.0/CheckSession', checkSession);
+			pRestServer.get('/1.0/CheckSession', checkSession);
 
 			//checkout a temp token which allows 3rd party connection to use this session
-			pRestServer.get('1.0/CheckoutSessionToken', getSessionToken);
+			pRestServer.get('/1.0/CheckoutSessionToken', getSessionToken);
 
 			//We could add routes here to support different auth-types
 			// depending on configuration (WWW-Auth for example)
