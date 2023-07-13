@@ -7,141 +7,141 @@
 */
 
 // Global hashmap
-var _MemorySessionMap = {};
+const PRUNE_OPS = 100; //Prune session map every X set operations
 
-var InMemoryStrategy = function()
+class InMemoryStrategy
 {
-	function createNew(pFable)
+	constructor(pFable)
 	{
-		// If a valid fable object isn't passed in, return a constructor
 		if ((typeof(pFable) !== 'object') || !('fable' in pFable))
-			return {new: createNew};
-		var _Log = pFable.log;
-		var _Settings = pFable.settings;
-
-		_Log.trace('Session Strategy is InMemory');
-
-		var PRUNE_OPS = 100; //Prune session map every X set operations
-		var _PruneCounter = 0;
-
-		// Iterate through memory session map, cleaning up keys that have expired
-		var pruneSessionStore = function()
 		{
-			var tmpKeys = Object.keys(_MemorySessionMap);
-
-			tmpKeys.forEach(checkTimeout);
+			throw new Error(`Invalid fable instance passed to OratorSession constructor. (${typeof(pFable)})`);
 		}
 
-		var checkTimeout = function(pIDSession)
-		{
-			if (_MemorySessionMap[pIDSession])
-			{
-				//check timeout
-				var tmpElapsed = Date.now() - _MemorySessionMap[pIDSession].Timestamp;
-				if (tmpElapsed > _MemorySessionMap[pIDSession].Timeout * 1000)
-				{
-					//Delete session key from memory map if timeout is exceeded.
-					delete _MemorySessionMap[pIDSession];
-				}
-			}
-		}
+		this._Fable = pFable.fable; // parameter may not be a fable object, but "has" fable anyway
+		this._Settings = pFable.settings || { };
+		this._Log = pFable.log;
 
-		//
-		var get = function(pIDSession, fCallback)
-		{
-			if (typeof(pIDSession) !== 'string')
-				return fCallback('pIDSession must be a string!');
+		this._Log.trace('Session Strategy is InMemory');
 
-			checkTimeout(pIDSession);
-
-			if (_MemorySessionMap[pIDSession])
-			{
-				//check timeout
-				return fCallback(null, _MemorySessionMap[pIDSession].Content)
-			}
-
-			return fCallback(null);
-		}
-
-		var touch = function(pIDSession, pTimeout, fCallback)
-		{
-			if (typeof(pIDSession) !== 'string')
-				return fCallback('pIDSession must be a string!');
-
-			if (!_MemorySessionMap[pIDSession])
-				return fCallback('Session ID not found!');
-
-			if (_MemorySessionMap[pIDSession])
-			{
-				_MemorySessionMap[pIDSession].Timestamp = Date.now();
-				_MemorySessionMap[pIDSession].Timeout = pTimeout;
-			}
-
-			return fCallback(null);
-		}
-
-		var set = function(pIDSession, pSessionDataString, pTimeout, fCallback)
-		{
-			if (typeof(pIDSession) !== 'string')
-				return fCallback('pIDSession must be a string!');
-			if (typeof(pSessionDataString) !== 'string')
-				return fCallback('pIDSession must be a string!');
-
-			if (_MemorySessionMap[pIDSession])
-			{
-				return fCallback('Session ID key already exists! Use replace instead.')
-			}
-
-			if (++_PruneCounter > PRUNE_OPS)
-			{
-				_PruneCounter = 0;
-
-				_Log.trace('Pruning in-memory session store...');
-				pruneSessionStore();
-			}
-
-			return replace(pIDSession, pSessionDataString, pTimeout, fCallback);
-		}
-
-		var replace = function(pIDSession, pSessionDataString, pTimeout, fCallback)
-		{
-			if (typeof(pIDSession) !== 'string')
-				return fCallback('pIDSession must be a string!');
-			if (typeof(pSessionDataString) !== 'string')
-				return fCallback('pIDSession must be a string!');
-
-			_MemorySessionMap[pIDSession] = {
-				Content: pSessionDataString,
-				Timestamp: Date.now(),
-				Timeout: pTimeout
-			};
-
-			return fCallback(null);
-		}
-
-		var del = function(pKey, fCallback)
-		{
-			delete _MemorySessionMap[pKey];
-			return fCallback();
-		}
-
-		/**
-		* Container Object for our Factory Pattern
-		*/
-		var tmpInMemoryStrategy = (
-		{
-			get: get,
-			touch: touch,
-			set: set,
-			replace: replace,
-			del: del,
-			new: createNew
-		});
-
-		return tmpInMemoryStrategy;
+		this._MemorySessionMap = { };
+		this._PruneCounter = 0;
 	}
 
-	return createNew();
-};
+	// Iterate through memory session map, cleaning up keys that have expired
+	pruneSessionStore()
+	{
+		const tmpKeys = Object.keys(this._MemorySessionMap);
 
-module.exports = new InMemoryStrategy();
+		tmpKeys.forEach(this.checkTimeout.bind(this));
+	}
+
+	checkTimeout(pIDSession)
+	{
+		if (this._MemorySessionMap[pIDSession])
+		{
+			// check timeout
+			const tmpElapsed = Date.now() - this._MemorySessionMap[pIDSession].Timestamp;
+			if (tmpElapsed > this._MemorySessionMap[pIDSession].Timeout * 1000)
+			{
+				// Delete session key from memory map if timeout is exceeded.
+				delete this._MemorySessionMap[pIDSession];
+			}
+		}
+	}
+
+	get(pIDSession, fCallback)
+	{
+		if (typeof(pIDSession) !== 'string')
+		{
+			return fCallback('pIDSession must be a string!');
+		}
+
+		this.checkTimeout(pIDSession);
+
+		if (this._MemorySessionMap[pIDSession])
+		{
+			// check timeout
+			return fCallback(null, this._MemorySessionMap[pIDSession].Content)
+		}
+
+		return fCallback(null);
+	}
+
+	touch(pIDSession, pTimeout, fCallback)
+	{
+		if (typeof(pIDSession) !== 'string')
+		{
+			return fCallback('pIDSession must be a string!');
+		}
+
+		if (!this._MemorySessionMap[pIDSession])
+		{
+			return fCallback('Session ID not found!');
+		}
+
+		if (this._MemorySessionMap[pIDSession])
+		{
+			this._MemorySessionMap[pIDSession].Timestamp = Date.now();
+			this._MemorySessionMap[pIDSession].Timeout = pTimeout;
+		}
+
+		return fCallback(null);
+	}
+
+	set(pIDSession, pSessionDataString, pTimeout, fCallback)
+	{
+		if (typeof(pIDSession) !== 'string')
+		{
+			return fCallback('pIDSession must be a string!');
+		}
+		if (typeof(pSessionDataString) !== 'string')
+		{
+			return fCallback('pIDSession must be a string!');
+		}
+
+		if (this._MemorySessionMap[pIDSession])
+		{
+			return fCallback('Session ID key already exists! Use replace instead.')
+		}
+
+		if (++this._PruneCounter > PRUNE_OPS)
+		{
+			this._PruneCounter = 0;
+
+			this._Log.trace('Pruning in-memory session store...');
+			this.pruneSessionStore();
+		}
+
+		return this.replace(pIDSession, pSessionDataString, pTimeout, fCallback);
+	}
+
+	replace(pIDSession, pSessionDataString, pTimeout, fCallback)
+	{
+		if (typeof(pIDSession) !== 'string')
+		{
+			return fCallback('pIDSession must be a string!');
+		}
+		if (typeof(pSessionDataString) !== 'string')
+		{
+			return fCallback('pIDSession must be a string!');
+		}
+
+		this._MemorySessionMap[pIDSession] =
+		{
+			Content: pSessionDataString,
+			Timestamp: Date.now(),
+			Timeout: pTimeout,
+		};
+
+		return fCallback(null);
+	}
+
+	del(pKey, fCallback)
+	{
+		delete this._MemorySessionMap[pKey];
+		return fCallback();
+	}
+}
+
+module.exports = InMemoryStrategy;

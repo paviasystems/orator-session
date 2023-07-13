@@ -5,64 +5,50 @@
 * @class MemcachedStrategy
 * @constructor
 */
-var libFS = require('fs');
-var MemcachedStrategy = function()
+const libFS = require('fs');
+const libMemcached = require('memcached');
+
+class MemcachedStrategy
 {
-	function createNew(pFable)
+	constructor(pFable)
 	{
-		// If a valid fable object isn't passed in, return a constructor
 		if ((typeof(pFable) !== 'object') || !('fable' in pFable))
-			return {new: createNew};
-		var _Log = pFable.log;
-		var _Settings = pFable.settings;
-
-		var libMemcached = require('memcached');
-		var _Memcached = false;
-		_Log.trace('Session Strategy is Memcached: '+_Settings.MemcachedURL);
-		_Memcached = new libMemcached(_Settings.MemcachedURL);
-
-		var get = function(pIDSession, fCallback)
 		{
-			return _Memcached.get(pIDSession, fCallback);
+			throw new Error(`Invalid fable instance passed to OratorSession constructor. (${typeof(pFable)})`);
 		}
 
-		var touch = function(pIDSession, pTimeout, fCallback)
-		{
-			return _Memcached.touch(pIDSession, pTimeout, fCallback);
-		}
+		this._Fable = pFable.fable; // parameter may not be a fable object, but "has" fable anyway
+		this._Settings = this._Fable.settings || { };
+		this._Log = this._Fable.log;
 
-		var set = function(pIDSession, pSessionDataString, pTimeout, fCallback)
-		{
-			return _Memcached.set(pIDSession, pSessionDataString, pTimeout, fCallback);
-		}
-
-		var replace = function(pIDSession, pSessionDataString, pTimeout, fCallback)
-		{
-			return _Memcached.replace(pIDSession, pSessionDataString, pTimeout, fCallback);
-		}
-
-		var del = function(pKey, fCallback)
-		{
-			return _Memcached.del(pKey, fCallback);
-		}
-
-		/**
-		* Container Object for our Factory Pattern
-		*/
-		var tmpMemcachedStrategy = (
-		{
-			get: get,
-			touch: touch,
-			set: set,
-			replace: replace,
-			del: del,
-			new: createNew
-		});
-
-		return tmpMemcachedStrategy;
+		this._Log.trace('Session Strategy is Memcached: ' + this._Settings.MemcachedURL);
+		this._Memcached = new libMemcached(this._Settings.MemcachedURL);
 	}
 
-	return createNew();
-};
+	get(pIDSession, fCallback)
+	{
+		return this._Memcached.get(pIDSession, fCallback);
+	}
 
-module.exports = new MemcachedStrategy();
+	touch(pIDSession, pTimeout, fCallback)
+	{
+		return this._Memcached.touch(pIDSession, pTimeout, fCallback);
+	}
+
+	set(pIDSession, pSessionDataString, pTimeout, fCallback)
+	{
+		return this._Memcached.set(pIDSession, pSessionDataString, pTimeout, fCallback);
+	}
+
+	replace(pIDSession, pSessionDataString, pTimeout, fCallback)
+	{
+		return this._Memcached.replace(pIDSession, pSessionDataString, pTimeout, fCallback);
+	}
+
+	del(pKey, fCallback)
+	{
+		return this._Memcached.del(pKey, fCallback);
+	}
+}
+
+module.exports = MemcachedStrategy;

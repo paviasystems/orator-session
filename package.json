@@ -1,11 +1,12 @@
 {
   "name": "@paviasystems/orator-session",
-  "version": "1.1.8",
+  "version": "2.0.0",
   "description": "Session state and authentication manager for Orator Restful web API server.",
   "main": "source/Orator-Session.js",
   "scripts": {
     "coverage": "nyc npm run test --reporter=lcov",
-    "test": "./node_modules/mocha/bin/_mocha -u tdd -R spec"
+    "test": "mocha -u tdd -R spec",
+    "tests": "mocha -u tdd -R spec -g"
   },
   "repository": {
     "type": "git",
@@ -15,7 +16,7 @@
     "orator",
     "session"
   ],
-  "author": "Jason Hillier <jason@paviasystems.com>",
+  "author": "Alex Decker <alex.decker@headlight.com>",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/paviasystems/orator-session/issues"
@@ -25,16 +26,15 @@
     "async": "3.2.4",
     "chai": "4.3.7",
     "codeclimate-test-reporter": "0.0.4",
-    "coveralls": "3.1.1",
-    "fable": "^3.0.73",
+    "fable": "^3.0.74",
     "mocha": "10.2.0",
     "nyc": "^15.1.0",
-    "orator": "^2.0.4",
+    "orator": "^4.0.1",
+    "orator-serviceserver-restify": "^2.0.1",
     "sinon": "^15.2.0",
     "supertest": "6.3.3"
   },
   "dependencies": {
-    "fable-uuid": "^1.0.3",
     "memcached": "^2.2.2",
     "restify-cookies": "^0.2.6"
   }

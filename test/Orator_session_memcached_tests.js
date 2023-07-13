@@ -11,7 +11,11 @@ const Expect = Chai.expect;
 const Assert = Chai.assert;
 const libSuperTest = require('supertest');
 
-var _MockSettings = (
+const Fable = require('fable');
+
+const OratorSession = require('../source/Orator-Session');
+
+const _MockSettings = (
 {
 	Product: 'MockOratorAlternate',
 	ProductVersion: '0.0.0',
@@ -28,6 +32,42 @@ function newAgent()
 	return libSuperTest.agent(`http://localhost:${_MockSettings.APIServerPort}/`);
 }
 
+async function newOrator(fable)
+{
+	fable.serviceManager.addServiceType('OratorServiceServer', require('orator-serviceserver-restify'));
+	fable.serviceManager.instantiateServiceProvider('OratorServiceServer', { });
+
+	// Now add the orator service to Fable
+	fable.serviceManager.addServiceType('Orator', require('orator'));
+	let orator = fable.serviceManager.instantiateServiceProvider('Orator', { });
+
+	return new Promise((resolve, reject) =>
+	{
+		fable.Utility.waterfall(
+		[
+			orator.initialize.bind(orator),
+			(fStageComplete)=>
+			{
+				const Restify = require('restify');
+				//FIXME: given this is required, how do we want enforce it is included?
+				orator.webServer.use(Restify.plugins.queryParser());
+				return fStageComplete();
+			},
+			//orator.startService.bind(orator),
+		],
+		(pError)=>
+		{
+			if (pError)
+			{
+				fable.log.error('Error initializing Orator Service Server: ' + pError.message, pError);
+				return reject(pError);
+			}
+			fable.log.info('Orator Service Server Initialized.');
+			resolve(orator);
+		});
+	});
+}
+
 suite
 (
 	'OratorSession',
@@ -42,7 +82,7 @@ suite
 		(
 			function()
 			{
-				_OratorSession = require('../source/Orator-Session.js').new(_MockSettings);
+				_OratorSession = new OratorSession(new Fable(_MockSettings));
 			}
 		);
 
@@ -68,15 +108,17 @@ suite
 			'Memcached Orator Session with Orator web Server',
 			function()
 			{
-				var _Orator;
-				var _OratorSession;
+				let _Fable;
+				let _Orator;
+				let _OratorSession;
 
 				test
 				(
 					'Initialize Orator',
-					function()
+					async function()
 					{
-						_Orator = require('orator').new(_MockSettings);
+						_Fable = new Fable(_MockSettings);
+						_Orator = await newOrator(_Fable);
 					}
 				);
 				test
@@ -84,7 +126,7 @@ suite
 					'Start Orator web Server',
 					function()
 					{
-						_OratorSession = require('../source/Orator-Session.js').new(_Orator);
+						_OratorSession = new OratorSession(_Orator);
 						_OratorSession.connectRoutes(_Orator.webServer);
 
 						//setup a route to use for testing
@@ -112,7 +154,7 @@ suite
 									password: pRequest.query.password
 								});
 
-								_OratorSession.authenticateUser(pRequest, _OratorSession.defaultAuthenticator, function(err, result)
+								_OratorSession.authenticateUser(pRequest, _OratorSession.defaultAuthenticator.bind(_OratorSession), function(err, result)
 								{
 									if (result &&
 										result.LoggedIn)
@@ -142,6 +184,7 @@ suite
 								.end(
 									function (pError, pResponse)
 									{
+										Expect(pError).to.not.exist;
 										Expect(pResponse.text)
 											.to.contain('TEST');
 										Expect(pResponse.statusCode)
@@ -163,6 +206,7 @@ suite
 								.end(
 									function (pError, pResponse)
 									{
+										Expect(pError).to.not.exist;
 										Expect(pResponse.text)
 											.to.contain('Failed');
 										fDone();
@@ -182,6 +226,7 @@ suite
 								.end(
 									function (pError, pResponse)
 									{
+										Expect(pError).to.not.exist;
 										Expect(pResponse.text)
 											.to.contain('Success');
 										fDone();
@@ -199,6 +244,7 @@ suite
 								.end(
 									function (pError, pResponse)
 									{
+										Expect(pError).to.not.exist;
 										Expect(pResponse.text)
 											.to.contain('TEST');
 										Expect(pResponse.statusCode)
@@ -220,6 +266,8 @@ suite
 							.end(
 								function (pError, pResponse)
 								{
+									Expect(pError).to.not.exist;
+									Expect(pResponse.body.Error).to.not.exist;
 									Expect(pResponse.body.Token)
 										.to.contain('TempSessionToken-');
 									Expect(pResponse.statusCode)
@@ -244,6 +292,8 @@ suite
 							.end(
 								function (pError, pResponse)
 								{
+									Expect(pError).to.not.exist;
+									Expect(pResponse.body.Error).to.not.exist;
 									Expect(pResponse.body.LoggedIn)
 										.to.equal(true);
 									Expect(pResponse.statusCode)
@@ -264,6 +314,8 @@ suite
 							.end(
 								function (pError, pResponse)
 								{
+									Expect(pError).to.not.exist;
+									Expect(pResponse.body.Error).to.not.exist;
 									Expect(pResponse.body.Success)
 										.to.equal(true);
 									Expect(pResponse.statusCode)
@@ -283,6 +335,8 @@ suite
 							.end(
 								function (pError, pResponse)
 								{
+									Expect(pError).to.not.exist;
+									Expect(pResponse.body.Error).to.not.exist;
 									Expect(pResponse.body.LoggedIn)
 										.to.equal(false);
 									Expect(pResponse.statusCode)
@@ -302,6 +356,8 @@ suite
 							.end(
 								function (pError, pResponse)
 								{
+									Expect(pError).to.not.exist;
+									Expect(pResponse.body.Error).to.not.exist;
 									Expect(pResponse.body.LoggedIn)
 										.to.equal(true);
 									Expect(pResponse.statusCode)
@@ -323,6 +379,8 @@ suite
 							.end(
 								function (pError, pResponse)
 								{
+									Expect(pError).to.not.exist;
+									Expect(pResponse.body.Error).to.not.exist;
 									Expect(pResponse.body.LoggedIn)
 										.to.equal(false);
 									Expect(pResponse.statusCode)
