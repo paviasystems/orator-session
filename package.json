@@ -27,6 +27,7 @@
     "chai": "4.3.7",
     "codeclimate-test-reporter": "0.0.4",
     "fable": "^3.0.74",
+    "koa": "^2.14.2",
     "mocha": "10.2.0",
     "nyc": "^15.1.0",
     "orator": "^4.0.1",

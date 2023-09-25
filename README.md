@@ -25,7 +25,7 @@ SessionManager.connectRoutes(pFable.webServer);
 
 ## OratorSessionKoa
 
-For use with Koa, without opting into the entire Fable ecosystem, `OratorSessionKoa` takes a lighter approach. Calling `.middleware()` returns an array of middleware fuctions for use with a koa server.
+For use with Koa, without opting into the entire Fable ecosystem, `OratorSessionKoa` takes a lighter approach. `.middleware` is a middleware fuction for use with a koa server.
 
 Usage:
 
@@ -39,7 +39,7 @@ import { OratorSessionKoa } from 'orator-session'
 const app = new Koa(...)
 
 const sessionManager = new OratorSessionKoa(config, log, uuid)
-app.use(sessionManager.middleware())
+app.use(sessionManager.middleware)
 ```
 
 ## Testing

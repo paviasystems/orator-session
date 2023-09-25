@@ -12,21 +12,22 @@ class OratorSessionKoa extends OratorSession
 	constructor(settings, log)
 	{
 		super(settings, log);
-	}
 
-	/**
-	* Return array of koa middleware for OratorSession
-	*
-	* @method middleware
-	*/
-	middleware()
-	{
-		return [getSession, getTempSession, logSession]
+		this.middleware = (ctx, next) =>
+		{
+			this.getSession(ctx, () =>
+			{
+				this.getTempSession(ctx, () =>
+				{
+					this.logSession(ctx, next)
+				})
+			})
+		};
 	}
 
 	getRemoteAddress(ctx)
 	{
-		return ctx.response.connection.remoteAddress;
+		return ctx.res.connection.remoteAddress;
 	}
 
 	getCookie(ctx, name)

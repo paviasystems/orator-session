@@ -224,7 +224,6 @@ class OratorSession
 
 		this._SessionStore.get(tmpSessionID, (pError, pData) =>
 		{
-			this._Log.info('got', { pError, pData });
 			if (pError || !pData)
 			{
 				//this._Log.trace('Error checking if session exists in memcache' + pError, { SessionID: tmpSessionID });
