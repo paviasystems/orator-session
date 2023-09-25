@@ -14,7 +14,7 @@ const libSuperTest = require('supertest');
 
 const Fable = require('fable');
 
-const OratorSession = require('../source/Orator-Session');
+const OratorSessionFable = require('../source/index').OratorSessionFable;
 
 const _MockSettings = (
 {
@@ -70,7 +70,7 @@ async function newOrator(fable)
 
 suite
 (
-	'OratorSession',
+	'OratorSessionFable',
 	function()
 	{
 		let _Orator;
@@ -82,7 +82,7 @@ suite
 		(
 			function()
 			{
-				_OratorSession = new OratorSession(new Fable(_MockSettings));
+				_OratorSession = new OratorSessionFable(new Fable(_MockSettings));
 			}
 		);
 
@@ -119,6 +119,7 @@ suite
 					{
 						_Fable = new Fable(_MockSettings);
 						_Orator = await newOrator(_Fable);
+						_Orator.webServer.use(require('restify-cookies').parse);
 					}
 				);
 				test
@@ -128,7 +129,7 @@ suite
 					{
 						// given
 						const fable2x = require('fable').new({});
-						const oratorSession = new OratorSession(fable2x);
+						const oratorSession = new OratorSessionFable(fable2x);
 						const webServer =
 						{
 							get: (route, endpointHandlerMethod) => { },
@@ -147,7 +148,7 @@ suite
 
 						// then
 						Expect(webServer.get.callCount).to.equal(3);
-						Expect(webServer.use.callCount).to.equal(4);
+						Expect(webServer.use.callCount).to.equal(3);
 					}
 				);
 				test
@@ -155,7 +156,7 @@ suite
 					'Start Orator web Server',
 					function(fTestComplete)
 					{
-						_OratorSession = new OratorSession(_Orator);
+						_OratorSession = new OratorSessionFable(_Orator);
 						_OratorSession.connectRoutes(_Orator.webServer);
 
 						//setup a route to use for testing

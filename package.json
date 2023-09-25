@@ -1,11 +1,11 @@
 {
   "name": "@paviasystems/orator-session",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "Session state and authentication manager for Orator Restful web API server.",
-  "main": "source/Orator-Session.js",
+  "main": "source/index.js",
   "scripts": {
     "coverage": "nyc npm run test --reporter=lcov",
-    "test": "mocha -u tdd -R spec",
+    "test": "mocha -u tdd -R spec -b",
     "tests": "mocha -u tdd -R spec -g"
   },
   "repository": {
@@ -31,11 +31,13 @@
     "nyc": "^15.1.0",
     "orator": "^4.0.1",
     "orator-serviceserver-restify": "^2.0.1",
+    "restify-cookies": "^0.2.6",
     "sinon": "^15.2.0",
     "supertest": "6.3.3"
   },
   "dependencies": {
     "memcached": "^2.2.2",
-    "restify-cookies": "^0.2.6"
+    "moment": "^2.29.4",
+    "uuid": "^9.0.1"
   }
 }
