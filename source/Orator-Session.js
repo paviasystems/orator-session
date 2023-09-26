@@ -95,11 +95,12 @@ class OratorSession
 				return this.createSession(pRequest, fNext);
 			}
 
-			//this._Log.trace('Restoring session', { SessionID: this.getSessionID(pRequest) });
 			// Touch the session so we reset timeout.
 			this._SessionStore.touch(this.getSessionID(pRequest), this._Settings.SessionTimeout, (pError) =>
 			{
-				this._Log.error(`Failed to touch session: ${this.getSessionID(pRequest)} (${(pError && pError.message) || pError})`);
+				if (pError) {
+					this._Log.error(`Failed to touch session: ${this.getSessionID(pRequest)} (${pError.message || pError})`);
+				}
 			});
 			pRequest[this._Settings.SessionCookieName] = JSON.parse(pData);
 
@@ -702,4 +703,3 @@ class OratorSession
 }
 
 module.exports = OratorSession;
-

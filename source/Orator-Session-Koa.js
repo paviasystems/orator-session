@@ -15,11 +15,15 @@ class OratorSessionKoa extends OratorSession
 
 		this.middleware = (ctx, next) =>
 		{
-			this.getSession(ctx, () =>
-			{
-				this.getTempSession(ctx, () =>
+			return new Promise((resolve, reject) => {
+				this.getSession(ctx, () =>
 				{
-					this.logSession(ctx, next)
+					this.getTempSession(ctx, () =>
+					{
+						this.logSession(ctx, () => {
+							next().then(resolve)
+						})
+					})
 				})
 			})
 		};
