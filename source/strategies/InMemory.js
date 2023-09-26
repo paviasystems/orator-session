@@ -11,16 +11,10 @@ const PRUNE_OPS = 100; //Prune session map every X set operations
 
 class InMemoryStrategy
 {
-	constructor(pFable)
+	constructor(settings, log)
 	{
-		if ((typeof(pFable) !== 'object') || !('fable' in pFable))
-		{
-			throw new Error(`Invalid fable instance passed to OratorSession constructor. (${typeof(pFable)})`);
-		}
-
-		this._Fable = pFable.fable; // parameter may not be a fable object, but "has" fable anyway
-		this._Settings = pFable.settings || { };
-		this._Log = pFable.log;
+		this._Settings = settings;
+		this._Log = log;
 
 		this._Log.trace('Session Strategy is InMemory');
 

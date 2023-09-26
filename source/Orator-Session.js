@@ -5,22 +5,16 @@
 * @constructor
 */
 
-const libCookieParser = require('restify-cookies');
 const libAsync = require('async');
 const libMoment = require('moment');
+const libUUID = require('uuid');
 
 class OratorSession
 {
-	constructor(pFable)
+	constructor(settings, log)
 	{
-		if ((typeof(pFable) !== 'object') || !('fable' in pFable))
-		{
-			throw new Error(`Invalid fable instance passed to OratorSession constructor. (${typeof(pFable)})`);
-		}
-
-		this._Fable = pFable.fable; // parameter may not be a fable object, but "has" fable anyway
-		this._Settings = this._Fable.settings || { };
-		this._Log = this._Fable.log;
+		this._Settings = settings;
+		this._Log = log;
 
 		// Default settings value for session cookie name
 		if (!this._Settings.SessionCookieName)
@@ -38,44 +32,8 @@ class OratorSession
 			this._Settings.SessionStrategy = 'Memcached';
 		}
 
-		this._SessionStore = new (require(__dirname + '/strategies/' + this._Settings.SessionStrategy))(this._Fable);
+		this._SessionStore = new (require(__dirname + '/strategies/' + settings.SessionStrategy))(settings, log);
 		this._PassthroughURLs = new Set(['/ping.html', '/version']);
-	}
-
-	/**
-	* Wire up routes for the OratorSession
-	*
-	* @method connectRoutes
-	* @param {Object} pRestServer The Restify server object to add routes to
-	*/
-	connectRoutes(pRestServer)
-	{
-		pRestServer.use(libCookieParser.parse);
-		// This means the getSession is called on every request
-		pRestServer.use(this.getSession.bind(this));
-		// This checks for a temp session token on every request
-		pRestServer.use(this.getTempSession.bind(this)); //import session when ?SessionToken=temp_token_id
-		// This logs each request after the session is set
-		pRestServer.use(this.logSession.bind(this));
-
-		// Deauthenticate
-		pRestServer.get('/1.0/Deauthenticate', this.deAuthenticateUser.bind(this));
-
-		pRestServer.get('/1.0/CheckSession', this.checkSession.bind(this));
-
-		//checkout a temp token which allows 3rd party connection to use this session
-		pRestServer.get('/1.0/CheckoutSessionToken', this.getSessionToken.bind(this));
-
-		//We could add routes here to support different auth-types
-		// depending on configuration (WWW-Auth for example)
-
-		//In case of an Orator proxy, these endpoints need to be omitted
-		if (typeof(this._Fable.omitProxyRoute) == 'function')
-		{
-			this._Fable.omitProxyRoute('1.0/Deauthenticate');
-			this._Fable.omitProxyRoute('1.0/CheckSession');
-			this._Fable.omitProxyRoute('1.0/CheckoutSessionToken');
-		}
 	}
 
 	/**
@@ -93,7 +51,7 @@ class OratorSession
 		}
 		else
 		{
-			tmpSessionID = pRequest.cookies[this._Settings.SessionCookieName];
+			tmpSessionID = this.getCookie(pRequest, this._Settings.SessionCookieName);
 		}
 
 		if (!tmpSessionID)
@@ -113,7 +71,7 @@ class OratorSession
 	 *
 	 * @method getSession
 	 */
-	getSession(pRequest, pResponse, fNext)
+	getSession(pRequest, fNext)
 	{
 		if (this._PassthroughURLs.has(pRequest.url))
 		{
@@ -122,20 +80,19 @@ class OratorSession
 
 		if (!this.getSessionID(pRequest))
 		{
-			return this.createSession(pRequest, pResponse, fNext);
+			return this.createSession(pRequest, fNext);
 		}
-		//this._Log.trace('Cookie reports session '+this.getSessionID(pRequest));
 		this._SessionStore.get(this.getSessionID(pRequest), (pError, pData) =>
 		{
 			if (pError)
 			{
 				this._Log.trace('Session ID not found but cookie exists, creating a new session' + pError, { SessionID: this.getSessionID(pRequest) });
-				return this.createSession(pRequest, pResponse, fNext);
+				return this.createSession(pRequest, fNext);
 			}
 
 			if (!pData)
 			{
-				return this.createSession(pRequest, pResponse, fNext);
+				return this.createSession(pRequest, fNext);
 			}
 
 			//this._Log.trace('Restoring session', { SessionID: this.getSessionID(pRequest) });
@@ -156,7 +113,7 @@ class OratorSession
 	 * @method getTempSession
 	 * @params Querystring: ?SessionToken=temp_token_id
 	 */
-	getTempSession(pRequest, pResponse, fNext)
+	getTempSession(pRequest, fNext)
 	{
 		if (!pRequest.query.SessionToken)
 		{
@@ -216,24 +173,24 @@ class OratorSession
 	/**
 	* Get the currently logged in user
 	*/
-	checkSession(pRequest, pResponse, fNext)
+	checkSession(pRequest, fNext)
 	{
 		const tmpNext = (typeof(fNext) === 'function') ? fNext : () => { };
 
 		if (!pRequest[this._Settings.SessionCookieName].LoggedIn)
 		{
-			pResponse.send({ IDUser: 0, UserID:0, LoggedIn: false });
+			pRequest.response.send({ IDUser: 0, UserID:0, LoggedIn: false });
 			return tmpNext();
 		}
 
 		const tmpIDUser = pRequest[this._Settings.SessionCookieName].UserID;
 		if (tmpIDUser < 1)
 		{
-			pResponse.send({ IDUser: 0, UserID:0, LoggedIn: false });
+			pRequest.response.send({ IDUser: 0, UserID:0, LoggedIn: false });
 			return tmpNext();
 		}
 
-		pResponse.send(pRequest[this._Settings.SessionCookieName]);
+		pRequest.response.send(pRequest[this._Settings.SessionCookieName]);
 		return tmpNext();
 	}
 
@@ -242,10 +199,10 @@ class OratorSession
 	 *
 	 * @method createSession
 	 */
-	 createSession(pRequest, pResponse, fNext)
+	 createSession(pRequest, fNext)
 	 {
 		// Create a new session UUID...
-		const tmpUUID = this._Fable.getUUID();
+		const tmpUUID = libUUID.v4();
 		let tmpSessionID = 'SES' + tmpUUID;
 		let tmpNewSessionData = this.formatEmptyUserPacket(tmpSessionID, tmpUUID);
 
@@ -277,7 +234,7 @@ class OratorSession
 						this._Log.trace('Error setting session: ' + (pError || 'no data returned from session provider'), { SessionID: tmpSessionID });
 					}
 					pRequest[this._Settings.SessionCookieName] = tmpNewSessionData;
-					pResponse.setCookie(this._Settings.SessionCookieName, tmpNewSessionData.SessionID,
+					this.setCookie(pRequest, this._Settings.SessionCookieName, tmpNewSessionData.SessionID,
 					{
 						path: '/',
 						maxAge: this._Settings.SessionTimeout,
@@ -297,7 +254,7 @@ class OratorSession
 					this._Log.trace('Error replacing session: ' + pError, { SessionID: tmpSessionID });
 				}
 				pRequest[this._Settings.SessionCookieName] = tmpNewSessionData;
-				pResponse.setCookie(this._Settings.SessionCookieName, tmpNewSessionData.SessionID,
+				this.setCookie(pRequest, this._Settings.SessionCookieName, tmpNewSessionData.SessionID,
 				{
 					path: '/',
 					maxAge: this._Settings.SessionTimeout,
@@ -340,6 +297,7 @@ class OratorSession
 			{
 				if (pError)
 				{
+					this._Log.trace('foo', this._Settings)
 					this._Log.trace('Error setting session status: ' + pError,
 					{
 						SessionID: pRequest[this._Settings.SessionCookieName].SessionID,
@@ -357,7 +315,7 @@ class OratorSession
 	/**
 	 * Log session state on Request
 	 */
-	logSession(pRequest, pResponse, fNext)
+	logSession(pRequest, fNext)
 	{
 		if (this._PassthroughURLs.has(pRequest.url))
 		{
@@ -366,7 +324,7 @@ class OratorSession
 
 		this._Log.info('Request',
 		{
-			ClientIP: pRequest.connection.remoteAddress,
+			ClientIP: this.getRemoteAddress(pRequest),
 			RequestUUID: pRequest.RequestUUID,
 			RequestURL: pRequest.url,
 			SessionID: pRequest[this._Settings.SessionCookieName].SessionID,
@@ -403,7 +361,7 @@ class OratorSession
 	 */
 	authenticateUser(pRequest, fAuthenticator, fCallBack)
 	{
-		const remoteIP = pRequest.headers['x-forwarded-for'] || pRequest.connection.remoteAddress;
+		const remoteIP = pRequest.headers['x-forwarded-for'] || this.getRemoteAddress(pRequest);
 		this._Log.trace('A user is attempting to login: ' + pRequest.Credentials.username,
 		{
 			RemoteIP: remoteIP,
@@ -476,7 +434,7 @@ class OratorSession
 	 *
 	 * @method deAuthenticateUser
 	 */
-	deAuthenticateUser(pRequest, pResponse, fNext)
+	deAuthenticateUser(pRequest, fNext)
 	{
 		this._Log.info('Deauthentication success',
 		{
@@ -487,7 +445,7 @@ class OratorSession
 		});
 		const tmpUserPacket = this.formatEmptyUserPacket(pRequest[this._Settings.SessionCookieName].SessionID);
 		this.setSessionLoginStatus(pRequest, tmpUserPacket);
-		pResponse.send({ Success: true });
+		pRequest.response.send({ Success: true });
 	}
 
 	/**
@@ -495,18 +453,18 @@ class OratorSession
 	 *
 	 * @method getSessionToken
 	 */
-	getSessionToken(pRequest, pResponse, fCallback)
+	getSessionToken(pRequest, fCallback)
 	{
 		this.checkoutSessionToken(pRequest, (err, token) =>
 		{
 			if (err)
 			{
 				//FIXME: :(
-				pResponse.send({ Error: err });
+				pRequest.response.send({ Error: err });
 			}
 			else
 			{
-				pResponse.send({ Token: token });
+				pRequest.response.send({ Token: token });
 			}
 
 			return fCallback();
@@ -526,7 +484,7 @@ class OratorSession
 			return fCallback('User not logged in!');
 		}
 
-		const tmpUUID = 'TempSessionToken-' + this._Fable.getUUID();
+		const tmpUUID = 'TempSessionToken-' + libUUID.v4();
 
 		this._SessionStore.set(tmpUUID, tmpSession.SessionID, this._Settings.SessionTempTokenTimeout, (pError) =>
 		{
