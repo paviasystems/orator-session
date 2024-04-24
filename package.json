@@ -1,6 +1,6 @@
 {
   "name": "@paviasystems/orator-session",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Session state and authentication manager for Orator Restful web API server.",
   "main": "source/Orator-Session.js",
   "scripts": {
@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "memcached": "^2.2.2",
+    "moment": "^2.30.1",
     "restify-cookies": "^0.2.6"
   }
 }
